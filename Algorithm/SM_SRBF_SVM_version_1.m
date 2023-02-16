@@ -125,48 +125,6 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 
-function [con,coneq]=cheapconFunction(x,A,B,Aeq,Beq,cheapcon_function)
-% convert A, B, Aeq, Beq to total cheapcon function
-%
-if nargin < 6
-    cheapcon_function=[];
-    if nargin < 5
-        Beq=[];
-        if nargin < 4
-            Aeq=[];
-            if nargin < 3
-                B=[];
-                if nargin < 2
-                    A=[];
-                end
-            end
-        end
-    end
-end
-x=x(:);
-con=[];
-coneq=[];
-if ~isempty(A)
-    if isempty(B)
-        con=[con;A*x];
-    else
-        con=[con;A*x-B];
-    end
-end
-if ~isempty(Aeq)
-    if isempty(Beq)
-        coneq=[coneq;Aeq*x];
-    else
-        coneq=[coneq;Aeq*x-Beq];
-    end
-end
-if ~isempty(cheapcon_function)
-    [lincon,linconeq]=cheapcon_function(x);
-    con=[con;lincon];
-    coneq=[coneq;linconeq];
-end
-end
-
 function [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
     cheapcon_function,model_function,....
@@ -180,6 +138,10 @@ function [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
 % both nonlcon_function and cheapcon_function format is [con,coneq]
 % model_function should output fval, format is [fval,con,coneq]
 % con or coneq can be colume vector if there was more than one constrain
+%
+% referance: [1] SHI R, LIU L, LONG T, et al. Sequential Radial Basis
+% Function Using Support Vector Machine for Expensive Design Optimization
+% [J]. AIAA Journal, 2017, 55(1): 214-27.
 %
 % Copyright Adel 2022.10
 %

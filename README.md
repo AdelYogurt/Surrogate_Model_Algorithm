@@ -1,2 +1,2 @@
 # Surrogate_Model_Algorithm
-Surrogate Model Algorithm
+Surrogate model and surrogate base optimization algorithm

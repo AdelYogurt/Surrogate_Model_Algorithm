@@ -77,51 +77,15 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 
-function [con,coneq]=cheapconFunction(x,A,B,Aeq,Beq,cheapcon_function)
-% convert A, B, Aeq, Beq to total cheapcon function
-%
-if nargin < 6
-    cheapcon_function=[];
-    if nargin < 5
-        Beq=[];
-        if nargin < 4
-            Aeq=[];
-            if nargin < 3
-                B=[];
-                if nargin < 2
-                    A=[];
-                end
-            end
-        end
-    end
-end
-con=[];
-coneq=[];
-if ~isempty(A)
-    if isempty(B)
-        con=[con;A*x];
-    else
-        con=[con;A*x-B];
-    end
-end
-if ~isempty(Aeq)
-    if isempty(Beq)
-        coneq=[coneq;Aeq*x];
-    else
-        coneq=[coneq;Aeq*x-Beq];
-    end
-end
-if ~isempty(cheapcon_function)
-    [lincon,linconeq]=cheapcon_function(x);
-    con=[con;lincon];
-    coneq=[coneq;linconeq];
-end
-end
-
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
     cheapcon_function,model_function,....
     NFE_max,iteration_max,torlance,nonlcon_torlance)
+% SADE optimization algorithm
+% referance: [1] 叶年辉, 龙腾, 武宇飞, et al.
+% 基于Kriging代理模型的约束差分进化算法 [J]. 航空学报, 2021, 42(6): 13.
+%
+%
 if nargin < 11 || isempty(nonlcon_torlance)
     nonlcon_torlance=1e-3;
     if nargin < 10 || isempty(torlance)
@@ -1808,57 +1772,4 @@ X=[X_new;X_exist];
         end
         distance_min__=sqrt(distance_min__);
     end
-end
-
-function drawFunction(object_function,low_bou,up_bou,...
-    grid_number,Y_min,Y_max,figure_handle)
-if nargin < 7
-    figure_handle=figure(10);
-    if nargin < 6
-        Y_max=inf;
-        if nargin < 5
-            Y_min=-inf;
-            if nargin < 4
-                grid_number=100;
-            end
-        end
-    end
-end
-axes_handle=figure_handle.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(figure_handle);
-end
-axes_context=axes_handle.Children;
-dimension=size(low_bou,1);
-
-switch dimension
-    case 1
-        d_bou=(up_bou-low_bou)/grid_number;
-        X__=low_bou:d_bou:up_bou;
-        fval__=zeros(grid_number+1,1);
-        for x_index__=1:(grid_number+1)
-            fval__(x_index__)=object_function(X__(x_index__));
-        end
-        line(axes_handle,X__,fval__);
-        xlabel('X');
-        ylabel('value');
-        
-    case 2
-        d_bou=(up_bou-low_bou)/grid_number;
-        [X__,Y]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        fval__=zeros(grid_number+1);
-        for x_index__=1:grid_number+1
-            for y_index__=1:grid_number+1
-                predict_x=([x_index__;y_index__]-1).*d_bou+low_bou;
-                fval__(x_index__,y_index__)=object_function(predict_x);
-            end
-        end
-        fval__(find(fval__ > Y_max))=Y_max;
-        fval__(find(fval__ < Y_min))=Y_min;
-        axes_context=[axes_context;surface(X__',Y',fval__,'FaceAlpha',0.5,'EdgeColor','none')];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
-        zlabel('value');
-end
 end
