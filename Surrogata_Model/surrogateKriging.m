@@ -26,18 +26,27 @@ close all hidden;
 % figure_handle=figure(1);
 % interpVisualize(kriging_model,low_bou,up_bou,figure_handle)
 
+% benchmark=BenchmarkFunction();
+% low_bou=[-2,-2];
+% up_bou=[2,2];
+% X=lhsdesign(10,2).*(up_bou-low_bou)+low_bou;
+% Y=benchmark.singleGPObject(X);
+% [predict_function,kriging_model]=interpKrigingPreModel(X,Y);
+% figure_handle=figure(1);
+% interpVisualize(kriging_model,low_bou,up_bou,figure_handle)
+
 benchmark=BenchmarkFunction();
-low_bou=[-2,-2];
-up_bou=[2,2];
-X=lhsdesign(10,2).*(up_bou-low_bou)+low_bou;
-Y=benchmark.singleGPObject(X);
-[predict_function,kriging_model]=interpKrigingPreModel(X,Y);
-figure_handle=figure(1);
-interpVisualize(kriging_model,low_bou,up_bou,figure_handle)
+X=(0:0.1:1)';
+Y=benchmark.singleForresterObjectLow(X);
+[predict_function,K_model]=interpKrigingPreModel(X, Y);
+x=(0:0.01:1)';
+[y]=predict_function(x);
+line(x,benchmark.singleForresterObjectLow(x),'Color','k','LineStyle','-')
+line(x,y,'Color','b','LineStyle','-');
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
     (X,Y,theta)
-% version 5, nomalization method is grassian
+% version 6, nomalization method is grassian
 % add multi x_predict input support
 % improve constrcut speed
 % prepare model, optimal theta and calculation parameter
@@ -58,16 +67,16 @@ if nargin < 3
 end
 
 % normalize data
-aver_X = mean(X);
-stdD_X = std(X);
-aver_Y = mean(Y);
-stdD_Y = std(Y);
+aver_X=mean(X);
+stdD_X=std(X);
+aver_Y=mean(Y);
+stdD_Y=std(Y);
 index__=find(stdD_X == 0);
 if  ~isempty(index__),  stdD_X(index__)=1; end
 index__=find(stdD_Y == 0);
 if  ~isempty(index__),  stdD_Y(index__)=1; end
-X_nomlz=(X-repmat(aver_X,x_number,1))./repmat(stdD_X,x_number,1);
-Y_nomlz=(Y-repmat(aver_Y,x_number,1))./repmat(stdD_Y,x_number,1);
+X_nomlz=(X-aver_X)./stdD_X;
+Y_nomlz=(Y-aver_Y)./stdD_Y;
 
 % initial X_dis_sq
 X_dis_sq=zeros(x_number,x_number,variable_number);
@@ -75,6 +84,13 @@ for variable_index=1:variable_number
     X_dis_sq(:,:,variable_index)=...
         (X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
 end
+
+% regression function define
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
+
+% calculate reg
+fval_reg=reg_function(X_nomlz);
 
 % optimal to get hyperparameter
 fmincon_option=optimoptions('fmincon','Display','iter-detailed',...
@@ -84,7 +100,7 @@ fmincon_option=optimoptions('fmincon','Display','iter-detailed',...
 low_bou_kriging=1e-1*ones(variable_number,1);
 up_bou_kriging=20*ones(variable_number,1);
 object_function_kriging=@(theta) objectFunctionKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta);
+    (X_dis_sq,Y_nomlz,x_number,variable_number,theta,fval_reg);
 
 % [fval,gradient]=object_function_kriging(theta)
 % [~,gradient_differ]=differ(object_function_kriging,theta)
@@ -93,8 +109,8 @@ theta=fmincon...
     (object_function_kriging,theta,[],[],[],[],low_bou_kriging,up_bou_kriging,[],fmincon_option);
 
 % get parameter
-[covariance,inv_covariance,fval_reg,beta,sigma_sq]=interpKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta);
+[covariance,inv_covariance,beta,sigma_sq]=interpKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,theta,fval_reg);
 gama=inv_covariance*(Y_nomlz-fval_reg*beta);
 FTRF=fval_reg'*inv_covariance*fval_reg;
 
@@ -102,7 +118,7 @@ FTRF=fval_reg'*inv_covariance*fval_reg;
 predict_function=@(predict_x) interpKrigingPredictor...
     (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
     x_number,variable_number,theta,beta,gama,sigma_sq,...
-    inv_covariance,fval_reg,FTRF,predict_x);
+    inv_covariance,fval_reg,FTRF,predict_x,reg_function);
 
 kriging_model.X=X;
 kriging_model.Y=Y;
@@ -126,17 +142,11 @@ kriging_model.predict_function=predict_function;
 % abbreviation:
 % num: number, pred: predict, vari: variable
     function [fval,gradient]=objectFunctionKriging...
-            (X_dis_sq,X,Y,x_num,vari_num,theta)
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % function to minimize sigma_sq
         %
-        cov=zeros(x_num,x_num);
-        for vari_index=1:vari_num
-            cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
-        end
-        cov=exp(-cov)+eye(x_num)*1e-6;
-        
-        % F is base funcion fval of data_point_x
-        F_reg=[ones(x_num,1),X];
+        [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
         
 %         % calculation negative log likelihood
 %         L=chol(cov)';
@@ -148,12 +158,6 @@ kriging_model.predict_function=predict_function;
 %         fval=x_num/2*log((Y_fbeta_L'*Y_fbeta_L)/x_num)+0.5*sum(log(diag(L)));
 
         % calculation negative log likelihood
-
-        inv_cov=cov\eye(x_num);
-        inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(1+vari_num);
-        miu=inv_FTRF*(F_reg'*inv_cov*Y);
-        Y_Fmiu=Y-F_reg*miu;
-        sigma2=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
         L=chol(cov)';
         fval=x_num/2*log(sigma2)+sum(log(diag(L)));
 
@@ -188,29 +192,31 @@ kriging_model.predict_function=predict_function;
             end
         end
     end
-    function [cov,inv_cov,fval_reg,beta,sigma_sq]=interpKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta)
+    function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % kriging interpolation kernel function
+        % Y(x)=beta+Z(x)
         %
-        cov=zeros(x_number,x_number);
-        for vari_index=1:variable_number
+        cov=zeros(x_num,x_num);
+        for vari_index=1:vari_num
             cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
         end
-        cov=exp(-cov)+eye(x_number)*1e-6;
-        
-        % F is base funcion fval of data_point_x
-%         fval_reg=ones(x_number,1); % zero
-        fval_reg=[ones(x_number,1),X]; % linear
-        
+        cov=exp(-cov)+eye(x_num)*1e-6;
+
         % coefficient calculation
-        inv_cov=cov\eye(x_number);
-        beta=(fval_reg'*inv_cov*fval_reg)\fval_reg'*inv_cov*Y;
-        sigma_sq=(Y-fval_reg*beta)'*inv_cov*(Y-fval_reg*beta)/x_number;
+        inv_cov=cov\eye(x_num);
+        inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(size(F_reg,2));
+
+        % basical bias
+        beta=inv_FTRF*(F_reg'*inv_cov*Y);
+        Y_Fmiu=Y-F_reg*beta;
+        sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
+        
     end
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
-            inv_cov,fval_reg,FTRF,X_pred)
+            inv_cov,fval_reg,FTRF,X_pred,reg_function)
         % kriging interpolation predict function
         % input predict_x and kriging model
         % predict_x is row vector
@@ -219,22 +225,22 @@ kriging_model.predict_function=predict_function;
         [x_pred_num,~]=size(X_pred);
 
         % normalize data
-        X_pred=(X_pred-aver_X)./stdD_X;
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
         
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
         for vari_index=1:vari_num
             predict_cov=predict_cov+...
-                (X_nomlz(:,vari_index)-X_pred(:,vari_index)').^2*theta(vari_index);
+                (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2*theta(vari_index);
         end
         predict_cov=exp(-predict_cov);
 
-%         predict_fval_reg__=1; % zero
-        predict_fval_reg__=[ones(x_pred_num,1),X_pred]; % linear
-        Y_pred=predict_fval_reg__*beta+predict_cov'*gama;
+        % predict base fval
+        predict_fval_reg=reg_function(X_pred_nomlz);
+        Y_pred=predict_fval_reg*beta+predict_cov'*gama;
         
         % predict variance
-        u__=fval_reg'*inv_cov*predict_cov;
+        u__=fval_reg'*inv_cov*predict_cov-predict_fval_reg';
         Var_pred=sigma_sq*...
             (1+u__'/FTRF*u__+...
             -predict_cov'*inv_cov*predict_cov);
@@ -242,5 +248,15 @@ kriging_model.predict_function=predict_function;
         % normalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
         Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
+    end
+    function F_reg=regZero(X)
+        % zero order base funcion
+        %
+        F_reg=ones(size(X,1),1); % zero
+    end
+    function F_reg=regLinear(X)
+        % first order base funcion
+        %
+        F_reg=[ones(size(X,1),1),X]; % linear
     end
 end

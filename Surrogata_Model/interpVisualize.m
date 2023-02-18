@@ -51,13 +51,21 @@ if size(x_list,2) == 1
     xlabel('X');
     ylabel('Y');
 elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
     [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
         low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou+low_bou;
-            predict_result(y_index,x_index)=predict_function(predict_x);
+    try
+        % generate all predict list
+        predict_x=[X_draw(:),Y_draw(:)];
+        [predict_result]=predict_function(predict_x);
+        predict_result=reshape(predict_result,grid_number+1,grid_number+1);
+    catch
+        % if not support multi input
+        predict_result=zeros(grid_number+1);
+        for x_index=1:grid_number+1
+            for y_index=1:grid_number+1
+                predict_x=([x_index,y_index]-1).*d_bou+low_bou;
+                [predict_result(y_index,x_index)]=predict_function(predict_x);
+            end
         end
     end
     surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
