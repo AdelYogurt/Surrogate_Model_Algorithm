@@ -117,14 +117,14 @@ MKQP_model.predict_function=predict_function;
 end
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
-    (X,Y,theta)
-% version 6, nomalization method is grassian
+    (X,Y,hyp)
+% version 7, nomalization method is grassian
 % add multi x_predict input support
-% improve constrcut speed
 % prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
 % theta beta gama sigma_sq is normalizede, so predict y is normalize
+% theta=exp(hyp)
 %
 % input initial data X, Y, which are real data
 %
@@ -135,7 +135,7 @@ function [predict_function,kriging_model]=interpKrigingPreModel...
 %
 [x_number,variable_number]=size(X);
 if nargin < 3
-    theta=ones(1,variable_number);
+    hyp=zeros(1,variable_number);
 end
 
 % normalize data
@@ -158,39 +158,42 @@ for variable_index=1:variable_number
 end
 
 % regression function define
+% notice reg_function process no normalization data
 % reg_function=@(X) regZero(X);
 reg_function=@(X) regLinear(X);
 
 % calculate reg
-fval_reg=reg_function(X_nomlz);
+fval_reg=(reg_function(X)-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
-fmincon_option=optimoptions('fmincon','Display','iter-detailed',...
+fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
-    'MaxIterations',10,'SpecifyObjectiveGradient',true);
-low_bou_kriging=1e-1*ones(variable_number,1);
-up_bou_kriging=20*ones(variable_number,1);
-object_function_kriging=@(theta) objectFunctionKriging...
-    (X_dis_sq,Y_nomlz,x_number,variable_number,theta,fval_reg);
+    'MaxIterations',10,'SpecifyObjectiveGradient',false);
+low_bou_hyp=-4*ones(1,variable_number);
+up_bou_hyp=4*ones(1,variable_number);
+object_function_hyp=@(hyp) objectNLLKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg);
 
-% [fval,gradient]=object_function_kriging(theta)
-% [~,gradient_differ]=differ(object_function_kriging,theta)
+% [fval,gradient]=object_function_hyp(hyp)
+% [~,gradient_differ]=differ(object_function_hyp,hyp)
 
-theta=fmincon...
-    (object_function_kriging,theta,[],[],[],[],low_bou_kriging,up_bou_kriging,[],fmincon_option);
+% drawFunction(object_function_hyp,low_bou_hyp,up_bou_hyp);
+
+hyp=fmincon...
+    (object_function_hyp,hyp,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
 
 % get parameter
 [covariance,inv_covariance,beta,sigma_sq]=interpKriging...
-    (X_dis_sq,Y_nomlz,x_number,variable_number,theta,fval_reg);
+    (X_dis_sq,Y_nomlz,x_number,variable_number,exp(hyp),fval_reg);
 gama=inv_covariance*(Y_nomlz-fval_reg*beta);
 FTRF=fval_reg'*inv_covariance*fval_reg;
 
 % initialization predict function
-predict_function=@(predict_x) interpKrigingPredictor...
-    (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_number,variable_number,theta,beta,gama,sigma_sq,...
-    inv_covariance,fval_reg,FTRF,predict_x,reg_function);
+predict_function=@(X_predict) interpKrigingPredictor...
+    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_number,variable_number,exp(hyp),beta,gama,sigma_sq,...
+    inv_covariance,fval_reg,FTRF,reg_function);
 
 kriging_model.X=X;
 kriging_model.Y=Y;
@@ -200,7 +203,7 @@ kriging_model.fval_regression=fval_reg;
 kriging_model.covariance=covariance;
 kriging_model.inv_covariance=inv_covariance;
 
-kriging_model.theta=theta;
+kriging_model.hyp=hyp;
 kriging_model.beta=beta;
 kriging_model.gama=gama;
 kriging_model.sigma_sq=sigma_sq;
@@ -212,23 +215,16 @@ kriging_model.stdD_Y=stdD_Y;
 kriging_model.predict_function=predict_function;
 
 % abbreviation:
-% num: number, pred: predict, vari: variable
-    function [fval,gradient]=objectFunctionKriging...
-            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
+% num: number, pred: predict, vari: variable, hyp: hyper parameter
+% NLL: negative log likelihood
+    function [fval,gradient]=objectNLLKriging...
+            (X_dis_sq,Y,x_num,vari_num,hyp,F_reg)
         % function to minimize sigma_sq
         %
+        theta=exp(hyp);
         [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
         
-%         % calculation negative log likelihood
-%         L=chol(cov)';
-%         fval_reg_L=L\fval_reg__;
-%         beta__=(fval_reg_L'*fval_reg_L)\(fval_reg_L'*(L\Y));
-%         Y_fbeta=Y-fval_reg__*beta__;
-%         Y_fbeta_L=L\Y_fbeta;
-% %         fval=(Y_fbeta_L'*Y_fbeta_L)/x_num;
-%         fval=x_num/2*log((Y_fbeta_L'*Y_fbeta_L)/x_num)+0.5*sum(log(diag(L)));
-
         % calculation negative log likelihood
         L=chol(cov)';
         fval=x_num/2*log(sigma2)+sum(log(diag(L)));
@@ -238,7 +234,7 @@ kriging_model.predict_function=predict_function;
             % gradient
             gradient=zeros(vari_num,1);
             for vari_index=1:vari_num
-                dcov_dtheta=-(X_dis_sq(:,:,vari_index).*cov);
+                dcov_dtheta=-(X_dis_sq(:,:,vari_index).*cov)*theta(vari_index)/vari_num;
 
                 dinv_cov_dtheta=...
                     -inv_cov*dcov_dtheta*inv_cov;
@@ -269,11 +265,12 @@ kriging_model.predict_function=predict_function;
         % kriging interpolation kernel function
         % Y(x)=beta+Z(x)
         %
+
         cov=zeros(x_num,x_num);
         for vari_index=1:vari_num
             cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
         end
-        cov=exp(-cov)+eye(x_num)*1e-6;
+        cov=exp(-cov/vari_num)+eye(x_num)*1e-6;
 
         % coefficient calculation
         inv_cov=cov\eye(x_num);
@@ -286,18 +283,20 @@ kriging_model.predict_function=predict_function;
         
     end
     function [Y_pred,Var_pred]=interpKrigingPredictor...
-            (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
-            inv_cov,fval_reg,FTRF,X_pred,reg_function)
+            inv_cov,fval_reg,FTRF,reg_function)
         % kriging interpolation predict function
         % input predict_x and kriging model
         % predict_x is row vector
         % output the predict value
         %
         [x_pred_num,~]=size(X_pred);
+        fval_reg_pred=reg_function(X_pred);
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
         
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
@@ -308,11 +307,11 @@ kriging_model.predict_function=predict_function;
         predict_cov=exp(-predict_cov);
 
         % predict base fval
-        predict_fval_reg=reg_function(X_pred_nomlz);
-        Y_pred=predict_fval_reg*beta+predict_cov'*gama;
+        
+        Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
         
         % predict variance
-        u__=fval_reg'*inv_cov*predict_cov-predict_fval_reg';
+        u__=fval_reg'*inv_cov*predict_cov-fval_reg_pred_nomlz';
         Var_pred=sigma_sq*...
             (1+u__'/FTRF*u__+...
             -predict_cov'*inv_cov*predict_cov);
