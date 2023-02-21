@@ -1,5 +1,6 @@
 function har=functionHNObject(x)
-% Hartman function
+% Hartman function'
+%
 % variable_number=6;
 % object_function=@(x) functionHNObject(x);
 % A=[];

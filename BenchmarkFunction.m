@@ -1,6 +1,23 @@
 classdef BenchmarkFunction < handle
     methods % unconstraint single objective function
         function fval=single2DObject(self,x)
+            % Rosenbrock problem
+            %
+            % variable_number=2;
+            % object_function=@(x) benchmark.single2DObject(x);
+            % object_function_LF=@(x) benchmark.single2DObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=[-5,-5];
+            % up_bou=[5,5];
+            % nonlcon_function=[];
+            % nonlcon_function_LF=[];
+            % cheapcon_function=[];
+            %
+            % x_best=[-3.6483,-0.0685] fval_best=272.5563
+            %
             x1=x(1);
             x2=x(2);
             fval=(x1^2+x2-11)^2+(x2^2+x1+20)^2;
@@ -8,7 +25,7 @@ classdef BenchmarkFunction < handle
         function fval=single2DObjectLow(self,x)
             x1=x(1);
             x2=x(2);
-            fval=function2DObject([0.9*x1;0.8*x2])-(x1+1)^2;
+            fval=self.single2DObject([0.9*x1;0.8*x2])-(x1+1)^2;
         end
         function fval=singleA10Object(self,x)
             x=x(:);
@@ -159,7 +176,7 @@ classdef BenchmarkFunction < handle
         function fval=singleHNObject(self,x)
             % Hartman function
             %
-            % object_function=@(x) benchmark_function.singleHNObject(x);
+            % object_function=@(x) benchmark.singleHNObject(x);
             % variable_number=6;
             % A=[];
             % B=[];
@@ -195,7 +212,7 @@ classdef BenchmarkFunction < handle
         end
         function fval=singlePKObject(self,x)
             % variable_number=2;
-            % object_function=@(x) benchmark_function.singlePKObject(x);
+            % object_function=@(x) benchmark.singlePKObject(x);
             % A=[];
             % B=[];
             % Aeq=[];
@@ -414,7 +431,7 @@ classdef BenchmarkFunction < handle
             % TNK problem
             % variable_number is 2
             %
-            % object_function=@(x) benchmark_function.multiTNKObject(self,x);
+            % object_function=@(x) benchmark.multiTNKObject(self,x);
             % variable_number=2;
             % low_bou=zeros(1,2);
             % up_bou=ones(1,2)*pi;

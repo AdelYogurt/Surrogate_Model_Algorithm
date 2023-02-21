@@ -16,15 +16,15 @@ load('matlab')
 % low_bou=[2];
 % up_bou=[4];
 
-radialbasis_model=interpolationRadialBasisPreModel(x_list,fval_list);
+radialbasis_model=interpRadialBasisPreModel(x_list,fval_list);
 figure_handle=figure(1);
-interpolationVisualize(radialbasis_model,low_bou,up_bou,figure_handle)
+interpVisualize(radialbasis_model,low_bou,up_bou,figure_handle)
 
 predict_function=radialbasis_model.predict_function;
 
-function radialbasis_model=interpolationRadialBasisPreModel...
+function radialbasis_model=interpRadialBasisPreModel...
     (X,Y,basis_function)
-% radial basis function interpolation pre model function version 1
+% radial basis function interp pre model function version 1
 % input initial data X, Y, which are real data
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
@@ -61,11 +61,11 @@ if isempty(basis_function)
 %     basis_function=@(r) sqrt(r'*r+c*c);
 end
 
-[beta,rdibas_matrix,inv_rdibas_matrix]=interpolationRadialBasis...
+[beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
     (X_nomlz,Y_nomlz,basis_function,x_number);
 
 % initialization predict function
-predict_function=@(predict_x) interpolationRadialBasisPredictor...
+predict_function=@(predict_x) interpRadialBasisPredictor...
     (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
     beta,basis_function,predict_x);
 
@@ -85,9 +85,9 @@ radialbasis_model.basis_function=basis_function;
 
 radialbasis_model.predict_function=predict_function;
 
-    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpolationRadialBasis...
+    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
             (X,Y,basis_function,x_number)
-        % interpolation polynomial responed surface core function
+        % interp polynomial responed surface core function
         % calculation beta
         %
         % Copyright 2022 Adel
@@ -110,10 +110,10 @@ radialbasis_model.predict_function=predict_function;
         inv_rdibas_matrix=inv(rdibas_matrix);
         beta=inv_rdibas_matrix*Y;
     end
-    function [predict_y]=interpolationRadialBasisPredictor...
+    function [predict_y]=interpRadialBasisPredictor...
             (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             beta,basis_function,predict_x)
-        % radial basis function interpolation predict function
+        % radial basis function interp predict function
         % input predict_x and radialbasis_model model
         % predict_x is row vector
         % output the predict value
@@ -140,72 +140,4 @@ radialbasis_model.predict_function=predict_function;
         % normalize data
         predict_y=predict_y*stdD_Y+aver_Y;
     end
-end
-function interpolationVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1)';
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1)';
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou'+low_bou';
-            predict_result(y_index,x_index)=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-end
 end

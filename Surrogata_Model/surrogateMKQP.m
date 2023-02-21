@@ -159,11 +159,11 @@ end
 
 % regression function define
 % notice reg_function process no normalization data
-% reg_function=@(X) regZero(X);
-reg_function=@(X) regLinear(X);
+reg_function=@(X) regZero(X);
+% reg_function=@(X) regLinear(X);
 
 % calculate reg
-fval_reg=(reg_function(X)-aver_Y)./stdD_Y;
+fval_reg_nomlz=(reg_function(X)-0)./1;
 
 % optimal to get hyperparameter
 fmincon_option=optimoptions('fmincon','Display','none',...
@@ -173,7 +173,7 @@ fmincon_option=optimoptions('fmincon','Display','none',...
 low_bou_hyp=-4*ones(1,variable_number);
 up_bou_hyp=4*ones(1,variable_number);
 object_function_hyp=@(hyp) objectNLLKriging...
-    (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg);
+    (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
 
 % [fval,gradient]=object_function_hyp(hyp)
 % [~,gradient_differ]=differ(object_function_hyp,hyp)
@@ -185,21 +185,21 @@ hyp=fmincon...
 
 % get parameter
 [covariance,inv_covariance,beta,sigma_sq]=interpKriging...
-    (X_dis_sq,Y_nomlz,x_number,variable_number,exp(hyp),fval_reg);
-gama=inv_covariance*(Y_nomlz-fval_reg*beta);
-FTRF=fval_reg'*inv_covariance*fval_reg;
+    (X_dis_sq,Y_nomlz,x_number,variable_number,exp(hyp),fval_reg_nomlz);
+gama=inv_covariance*(Y_nomlz-fval_reg_nomlz*beta);
+FTRF=fval_reg_nomlz'*inv_covariance*fval_reg_nomlz;
 
 % initialization predict function
 predict_function=@(X_predict) interpKrigingPredictor...
     (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
     x_number,variable_number,exp(hyp),beta,gama,sigma_sq,...
-    inv_covariance,fval_reg,FTRF,reg_function);
+    inv_covariance,fval_reg_nomlz,FTRF,reg_function);
 
 kriging_model.X=X;
 kriging_model.Y=Y;
 kriging_model.X_normalize=X_nomlz;
 kriging_model.Y_normalize=Y_nomlz;
-kriging_model.fval_regression=fval_reg;
+kriging_model.fval_regression=fval_reg_nomlz;
 kriging_model.covariance=covariance;
 kriging_model.inv_covariance=inv_covariance;
 
@@ -224,7 +224,7 @@ kriging_model.predict_function=predict_function;
         theta=exp(hyp);
         [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
-        
+
         % calculation negative log likelihood
         L=chol(cov)';
         fval=x_num/2*log(sigma2)+sum(log(diag(L)));
@@ -265,12 +265,11 @@ kriging_model.predict_function=predict_function;
         % kriging interpolation kernel function
         % Y(x)=beta+Z(x)
         %
-
         cov=zeros(x_num,x_num);
         for vari_index=1:vari_num
             cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
         end
-        cov=exp(-cov/vari_num)+eye(x_num)*1e-6;
+        cov=exp(-cov/vari_num)+eye(x_num)*1e-3;
 
         % coefficient calculation
         inv_cov=cov\eye(x_num);
@@ -285,7 +284,7 @@ kriging_model.predict_function=predict_function;
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
-            inv_cov,fval_reg,FTRF,reg_function)
+            inv_cov,fval_reg_nomlz,FTRF,reg_function)
         % kriging interpolation predict function
         % input predict_x and kriging model
         % predict_x is row vector
@@ -296,7 +295,7 @@ kriging_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
+        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
         
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
@@ -304,14 +303,14 @@ kriging_model.predict_function=predict_function;
             predict_cov=predict_cov+...
                 (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2*theta(vari_index);
         end
-        predict_cov=exp(-predict_cov);
+        predict_cov=exp(-predict_cov/vari_num);
 
         % predict base fval
         
         Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
         
         % predict variance
-        u__=fval_reg'*inv_cov*predict_cov-fval_reg_pred_nomlz';
+        u__=fval_reg_nomlz'*inv_cov*predict_cov-fval_reg_pred_nomlz';
         Var_pred=sigma_sq*...
             (1+u__'/FTRF*u__+...
             -predict_cov'*inv_cov*predict_cov);
