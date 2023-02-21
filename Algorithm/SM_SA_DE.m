@@ -2,18 +2,21 @@ clc;
 clear;
 close all hidden;
 
-data_library_name='optimalSurrogate_SA_DE_result';
+data_library_name='optimal_data_library';
+
+benchmark=BenchmarkFunction();
 
 variable_number=2;
-object_function=@(x) functionPKObject(x);
+object_function=@(x) benchmark.singlePKObject(x);
 A=[];
 B=[];
 Aeq=[];
 Beq=[];
-low_bou=-3*ones(variable_number,1);
-up_bou=3*ones(variable_number,1);
+low_bou=[-3,-3];
+up_bou=[3,3];
 nonlcon_function=[];
 cheapcon_function=[];
+model_function=[];
 
 % variable_number=10;
 % object_function=@(x) functionA10Object(x);
@@ -77,14 +80,17 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 
+%% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
     cheapcon_function,model_function,....
     NFE_max,iteration_max,torlance,nonlcon_torlance)
-% SADE optimization algorithm
+% KRG-CDE optimization algorithm
+%
 % referance: [1] 叶年辉, 龙腾, 武宇飞, et al.
 % 基于Kriging代理模型的约束差分进化算法 [J]. 航空学报, 2021, 42(6): 13.
 %
+% Copyright 2022 Adel
 %
 if nargin < 11 || isempty(nonlcon_torlance)
     nonlcon_torlance=1e-3;
@@ -126,7 +132,7 @@ cross_rate=0.8;
 
 protect_range=1e-4;
 
-data_library_name='optimalSurrogate_SA_DE_result';
+data_library_name='optimal_data_library';
 file_result = fopen('result_total.txt','a');
 fprintf(file_result,'%s\n',datetime);
 fclose(file_result);
@@ -135,7 +141,7 @@ clear('file_result');
 done=0;NFE=0;iteration=0;
 
 % if do not input model_function, generate model_function
-if nargin < 7 || isempty(model_function)
+if isempty(model_function)
     model_function=@(x) modelFunction(x,object_function,nonlcon_function);
 end
 
@@ -160,19 +166,22 @@ else
     expensive_nonlcon_flag=0;
 end
 
-% NFE setting
-if expensive_nonlcon_flag
-    if isempty(NFE_max)
+% NFE and iteration setting
+if isempty(NFE_max)
+    if expensive_nonlcon_flag
         NFE_max=50*variable_number;
-    end
-    iteration_max=50*variable_number;
-else
-    if isempty(NFE_max)
+    else
         NFE_max=20*variable_number;
     end
-    iteration_max=20*variable_number;
 end
 
+if isempty(iteration_max)
+    if expensive_nonlcon_flag
+        iteration_max=50*variable_number;
+    else
+        iteration_max=20*variable_number;
+    end
+end
 result_x_best=zeros(iteration_max,variable_number);
 result_fval_best=zeros(iteration_max,1);
 
@@ -193,17 +202,17 @@ while ~done
     infor_search_flag=search_flag;
     % nomalization con with average
     fval_max=mean(abs(fval_list),1);
-    fval_nomlz_list=fval_list./fval_max;
+    fval_nomlz_list=fval_list./fval_max*10;
     if ~isempty(con_list)
         con_max_list=mean(abs(con_list),1);
-        con_nomlz_list=con_list./con_max_list;
+        con_nomlz_list=con_list./con_max_list*10;
     else
         con_max_list=[];
         con_nomlz_list=[];
     end
     if ~isempty(coneq_list)
         coneq_max_list=mean(abs(coneq_list),1);
-        coneq_nomlz_list=coneq_list./coneq_max_list;
+        coneq_nomlz_list=coneq_list./coneq_max_list*10;
     else
         coneq_max_list=[];
         coneq_nomlz_list=[];
@@ -406,7 +415,7 @@ output.result_fval_best=result_fval_best;
         
         % evaluate each x_offspring fval and constraints
         for x_index=1:4*population_number
-            x=x_DE_list(x_index,:)';
+            x=x_DE_list(x_index,:);
             fval_DE_list(x_index,1)=object_function_surrogate(x);
             fval_var_DE_list(x_index,1)=object_function_variance(x);
         end
@@ -478,7 +487,7 @@ output.result_fval_best=result_fval_best;
         
         if DRAW_FIGURE_FLAG && variable_number < 3
             line(x_global_infill(1),x_global_infill(2),'Marker','o','color','r')
-            interpolationVisualize(kriging_model_fval,low_bou,up_bou);
+            interpVisualize(kriging_model_fval,low_bou,up_bou);
         end
     end
     function x_local_infill=searchLocal...
@@ -502,7 +511,7 @@ output.result_fval_best=result_fval_best;
         
         % select nearest point to construct RBF
         RBF_number=min(RBF_number,size(x_list,1));
-        distance=sum(((x_initial'-x_list)./(up_bou'-low_bou')).^2,2);
+        distance=sum(((x_initial'-x_list)./(up_bou-low_bou)).^2,2);
         [~,index_list]=sort(distance);
         index_list=index_list(1:RBF_number);
         x_RBF_list=x_list(index_list,:);
@@ -538,7 +547,7 @@ output.result_fval_best=result_fval_best;
         
         if DRAW_FIGURE_FLAG && variable_number < 3
             line(x_local_infill(1),x_local_infill(2),'Marker','o','color','r')
-            interpolationVisualize(radialbasis_model_fval,low_bou,up_bou);
+            interpVisualize(radialbasis_model_fval,low_bou,up_bou);
         end
     end
     function [fval,con,coneq]=modelFunction(x,object_function,nonlcon_function)
@@ -585,8 +594,8 @@ output.result_fval_best=result_fval_best;
             for rand_index__=1:rand_number
                 X_new(x_index__,:)=X_new(x_index__,:)+...
                     F*(X(index__(2*rand_index__),:)-X(index__(2*rand_index__+1),:));
-                X_new(x_index__,:)=max(X_new(x_index__,:),low_bou');
-                X_new(x_index__,:)=min(X_new(x_index__,:),up_bou');
+                X_new(x_index__,:)=max(X_new(x_index__,:),low_bou);
+                X_new(x_index__,:)=min(X_new(x_index__,:),up_bou);
             end
         end
     end
@@ -598,8 +607,8 @@ output.result_fval_best=result_fval_best;
             X_new(x_index__,:)=X(x_index__,:)+...
                 F*(X(index__(1),:)-X(x_index__,:)+...
                 X(index__(2),:)-X(index__(3),:));
-            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou');
-            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou');
+            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou);
+            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou);
         end
     end
     function X_new=differEvolutionCurrentBest(low_bou,up_bou,X,F,x_best_index)
@@ -610,8 +619,8 @@ output.result_fval_best=result_fval_best;
             X_new(x_index__,:)=X(x_index__,:)+...
                 F*(X(x_best_index,:)-X(x_index__,:)+...
                 X(index__(1),:)-X(index__(2),:));
-            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou');
-            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou');
+            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou);
+            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou);
         end
     end
     function X_new=differEvolutionCrossover(low_bou,up_bou,X,V,C_R)
@@ -624,8 +633,8 @@ output.result_fval_best=result_fval_best;
         index__=find(rand_number < C_R);
         X_new(index__)=V(index__);
         for x_index__=1:x_number__
-            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou');
-            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou');
+            X_new(x_index__,:)=max(X_new(x_index__,:),low_bou);
+            X_new(x_index__,:)=min(X_new(x_index__,:),up_bou);
         end
     end
     function [x_updata_list,fval_updata_list,con_updata_list,coneq_updata_list,NFE]=dataLibraryUpdataProtect...
@@ -643,7 +652,7 @@ output.result_fval_best=result_fval_best;
             
             % check x_potential if exist in data library
             % if not, updata data libraray
-            distance__=sum(((x_updata__-x_list)./(low_bou'-up_bou')).^2,2);
+            distance__=sum(((x_updata__-x_list)./(low_bou-up_bou)).^2,2);
             [~,min_index__]=min(distance__);
             if distance__(min_index__) < protect_range^2
                 x_updata__=x_list(min_index__,:);
@@ -668,6 +677,7 @@ output.result_fval_best=result_fval_best;
     end
 end
 
+%% auxiliary function
 function [x_best,fval_best,con_best,coneq_best]=findMinRaw...
     (x_list,fval_list,con_list,coneq_list,...
     cheapcon_function,nonlcon_torlance)
@@ -810,6 +820,7 @@ if ~isempty(coneq_list)
 end
 end
 
+%% surrogate model
 function [kriging_model_fval,kriging_model_con,kriging_model_coneq,output]=getKrigingModel...
     (x_list,fval_list,con_list,coneq_list)
 % base on library_data to create kriging model and function
@@ -820,7 +831,7 @@ function [kriging_model_fval,kriging_model_con,kriging_model_coneq,output]=getKr
 % var_function is same
 %
 
-kriging_model_fval=interpolationKrigingPreModel...
+[predict_function_fval,kriging_model_fval]=interpKrigingPreModel...
     (x_list,fval_list);
 
 if ~isempty(con_list)
@@ -830,12 +841,14 @@ if ~isempty(con_list)
         'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
         'predict_function',[]);
     kriging_model_con=repmat(kriging_model_con,[size(con_list,2),1]);
+    predict_function_con=cell(size(con_list,2),1);
     for con_index=1:size(con_list,2)
-        kriging_model_con(con_index)=interpolationKrigingPreModel...
+        [predict_function_con{con_index},kriging_model_con(con_index)]=interpKrigingPreModel...
             (x_list,con_list(:,con_index));
     end
 else
     kriging_model_con=[];
+    predict_function_con=[];
 end
 
 if ~isempty(coneq_list)
@@ -845,22 +858,24 @@ if ~isempty(coneq_list)
         'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
         'predict_function',[]);
     kriging_model_coneq=repmat(kriging_model_coneq,[size(coneq_list,2),1]);
+    predict_function_coneq=cell(size(con_list,2),1);
     for coneq_index=1:size(coneq_list,2)
-        kriging_model_coneq(coneq_index)=interpolationKrigingPreModel...
+        [predict_function_coneq{coneq_index},kriging_model_coneq(coneq_index)]=interpKrigingPreModel...
             (x_list,coneq_list(:,coneq_index),theta_coneq,base_function_list);
     end
 else
     kriging_model_coneq=[];
+    predict_function_coneq=[];
 end
 
-object_function_surrogate=@(predict_x) objectFunctionSurrogate(predict_x,kriging_model_fval);
-object_function_variance=@(predict_x) objectFunctionVariance(predict_x,kriging_model_fval);
-if isempty(kriging_model_con) && isempty(kriging_model_coneq)
+object_function_surrogate=@(predict_x) objectFunctionSurrogate(predict_x,predict_function_fval);
+object_function_variance=@(predict_x) objectFunctionVariance(predict_x,predict_function_fval);
+if isempty(predict_function_con) && isempty(predict_function_coneq)
     nonlcon_function_surrogate=[];
     nonlcon_function_variance=[];
 else
-    nonlcon_function_surrogate=@(predict_x) nonlconFunctionSurrogate(predict_x,kriging_model_con,kriging_model_coneq);
-    nonlcon_function_variance=@(predict_x) nonlconFunctionVariance(predict_x,kriging_model_con,kriging_model_coneq);
+    nonlcon_function_surrogate=@(predict_x) nonlconFunctionSurrogate(predict_x,predict_function_con,predict_function_coneq);
+    nonlcon_function_variance=@(predict_x) nonlconFunctionVariance(predict_x,predict_function_con,predict_function_coneq);
 end
 
 output.object_function_surrogate=object_function_surrogate;
@@ -874,136 +889,145 @@ output.coneq_list=coneq_list;
 
 
     function fval=objectFunctionSurrogate...
-            (predict_x,kriging_model_fval)
-        [fval,~]=kriging_model_fval.predict_function(predict_x);
+            (predict_x,predict_function)
+        [fval,~]=predict_function(predict_x);
     end
     function fval_var=objectFunctionVariance...
-            (predict_x,kriging_model_fval)
-        [~,fval_var]=kriging_model_fval.predict_function(predict_x);
+            (predict_x,predict_function)
+        [~,fval_var]=predict_function(predict_x);
     end
     function [con,coneq]=nonlconFunctionSurrogate...
-            (predict_x,kriging_model_con,kriging_model_coneq)
-        if isempty(kriging_model_con)
+            (predict_x,predict_function_con,predict_function_coneq)
+        if isempty(predict_function_con)
             con=[];
         else
-            con=zeros(length(kriging_model_con),1);
-            for con_index__=1:length(kriging_model_con)
-                [con(con_index__),~]=kriging_model_con(con_index__).predict_function....
+            con=zeros(length(predict_function_con),1);
+            for con_index__=1:length(predict_function_con)
+                [con(con_index__),~]=predict_function_con{con_index__}....
                     (predict_x);
             end
         end
-        if isempty(kriging_model_coneq)
+        if isempty(predict_function_coneq)
             coneq=[];
         else
-            coneq=zeros(length(kriging_model_coneq),1);
-            for coneq_index__=1:length(kriging_model_con)
-                [coneq(coneq_index__),~]=kriging_model_coneq(coneq_index__).predict_function...
+            coneq=zeros(length(predict_function_coneq),1);
+            for coneq_index__=1:length(predict_function_con)
+                [coneq(coneq_index__),~]=predict_function_coneq{coneq_index__}...
                     (predict_x);
             end
         end
     end
     function [con_var,coneq_var]=nonlconFunctionVariance...
-            (predict_x,kriging_model_con,kriging_model_coneq)
-        if isempty(kriging_model_con)
+            (predict_x,predict_function_con,predict_function_coneq)
+        if isempty(predict_function_con)
             con_var=[];
         else
-            con_var=zeros(length(kriging_model_con),1);
-            for con_index__=1:length(kriging_model_con)
-                [~,con_var(con_index__)]=kriging_model_con(con_index__).predict_function....
+            con_var=zeros(length(predict_function_con),1);
+            for con_index__=1:length(predict_function_con)
+                [~,con_var(con_index__)]=predict_function_con{con_index__}....
                     (predict_x);
             end
         end
-        if isempty(kriging_model_coneq)
+        if isempty(predict_function_coneq)
             coneq_var=[];
         else
-            coneq_var=zeros(length(kriging_model_coneq),1);
-            for coneq_index__=1:length(kriging_model_con)
-                [~,coneq_var(coneq_index__)]=kriging_model_coneq(coneq_index__).predict_function...
+            coneq_var=zeros(length(predict_function_coneq),1);
+            for coneq_index__=1:length(predict_function_con)
+                [~,coneq_var(coneq_index__)]=predict_function_coneq{coneq_index__}...
                     (predict_x);
             end
         end
     end
 end
-function kriging_model=interpolationKrigingPreModel...
-    (X,Y,theta,base_function_list)
-% prepare model, optimal theta, load result and calculation parameter
-% input initial data X, Y, which are real data
+
+function [predict_function,kriging_model]=interpKrigingPreModel...
+    (X,Y,hyp)
+% version 7, nomalization method is grassian
+% add multi x_predict input support
+% prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
-% output is a kriging model, include X, Y, base_function_list
-% and predict_function
-% theta beta gama sigma_sq is normalizede, so predict y is normalizede
+% theta beta gama sigma_sq is normalizede, so predict y is normalize
+% theta=exp(hyp)
 %
-% Copyright 2022 Adel
+% input initial data X, Y, which are real data
 %
-if nargin < 4
-    base_functon=@(x) 1;
-    base_function_list={base_functon};
-    if nargin < 3
-        theta=[];
-        if nargin < 2
-            error('interpolationKrigingPreModel: lack input');
-        end
-    end
-end
+% output is a kriging model, include predict_function...
+% X, Y, base_function_list
+%
+% Copyright 2023.2 Adel
+%
 [x_number,variable_number]=size(X);
-if isempty(theta)
-    theta=ones(variable_number,1);
+if nargin < 3
+    hyp=zeros(1,variable_number);
 end
 
 % normalize data
-aver_X = mean(X);
-stdD_X = std(X);
-aver_Y = mean(Y);
-stdD_Y = std(Y);
-index__ = find(stdD_X == 0);
-if  ~isempty(index__),  stdD_X(index__) = 1; end
-index__ = find(stdD_Y == 0);
-if  ~isempty(index__),  stdD_Y(index__) = 1; end
-X_nomlz = (X - repmat(aver_X,x_number,1)) ./ repmat(stdD_X,x_number,1);
-Y_nomlz = (Y - repmat(aver_Y,x_number,1)) ./ repmat(stdD_Y,x_number,1);
+aver_X=mean(X);
+stdD_X=std(X);
+aver_Y=mean(Y);
+stdD_Y=std(Y);
+index__=find(stdD_X == 0);
+if  ~isempty(index__),  stdD_X(index__)=1; end
+index__=find(stdD_Y == 0);
+if  ~isempty(index__),  stdD_Y(index__)=1; end
+X_nomlz=(X-aver_X)./stdD_X;
+Y_nomlz=(Y-aver_Y)./stdD_Y;
 
 % initial X_dis_sq
 X_dis_sq=zeros(x_number,x_number,variable_number);
-for rank=1:x_number
-    for colume=1:rank-1
-        X_dis_sq(rank,colume,:)=X_dis_sq(colume,rank,:);
-    end
-    for colume=rank:x_number
-        X_dis_sq(rank,colume,:)=(X_nomlz(rank,:)-X_nomlz(colume,:)).^2;
-    end
+for variable_index=1:variable_number
+    X_dis_sq(:,:,variable_index)=...
+        (X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
 end
 
+% regression function define
+% notice reg_function process no normalization data
+reg_function=@(X) regZero(X);
+% reg_function=@(X) regLinear(X);
+
+% calculate reg
+fval_reg_nomlz=(reg_function(X)-0)./1;
+
 % optimal to get hyperparameter
-options = optimoptions(@fmincon,'Display','off');
-low_bou_kriging=1e-1*ones(variable_number,1);
-up_bou_kriging=20*ones(variable_number,1);
-object_function_kriging=@(theta) objectFunctionKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta,base_function_list);
-theta=fmincon...
-    (object_function_kriging,theta,[],[],[],[],low_bou_kriging,up_bou_kriging,[],options);
+fmincon_option=optimoptions('fmincon','Display','none',...
+    'OptimalityTolerance',1e-2,...
+    'FiniteDifferenceStepSize',1e-5,...,
+    'MaxIterations',10,'SpecifyObjectiveGradient',false);
+low_bou_hyp=-4*ones(1,variable_number);
+up_bou_hyp=4*ones(1,variable_number);
+object_function_hyp=@(hyp) objectNLLKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
+
+% [fval,gradient]=object_function_hyp(hyp)
+% [~,gradient_differ]=differ(object_function_hyp,hyp)
+
+% drawFunction(object_function_hyp,low_bou_hyp,up_bou_hyp);
+
+hyp=fmincon...
+    (object_function_hyp,hyp,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
 
 % get parameter
-[covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpolationKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta,base_function_list);
-gama=inv_convariance*(Y_nomlz-fval_reg*beta);
+[covariance,inv_covariance,beta,sigma_sq]=interpKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,exp(hyp),fval_reg_nomlz);
+gama=inv_covariance*(Y_nomlz-fval_reg_nomlz*beta);
+FTRF=fval_reg_nomlz'*inv_covariance*fval_reg_nomlz;
 
 % initialization predict function
-predict_function=@(predict_x) interpolationKrigingPredictor...
-    (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    theta,beta,gama,sigma_sq,...
-    inv_convariance,fval_reg,base_function_list,predict_x);
+predict_function=@(X_predict) interpKrigingPredictor...
+    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_number,variable_number,exp(hyp),beta,gama,sigma_sq,...
+    inv_covariance,fval_reg_nomlz,FTRF,reg_function);
 
 kriging_model.X=X;
 kriging_model.Y=Y;
 kriging_model.X_normalize=X_nomlz;
 kriging_model.Y_normalize=Y_nomlz;
-kriging_model.base_function_list=base_function_list;
-kriging_model.fval_regression=fval_reg;
+kriging_model.fval_regression=fval_reg_nomlz;
 kriging_model.covariance=covariance;
-kriging_model.inv_convariance=inv_convariance;
+kriging_model.inv_covariance=inv_covariance;
 
-kriging_model.theta=theta;
+kriging_model.hyp=hyp;
 kriging_model.beta=beta;
 kriging_model.gama=gama;
 kriging_model.sigma_sq=sigma_sq;
@@ -1014,97 +1038,120 @@ kriging_model.stdD_Y=stdD_Y;
 
 kriging_model.predict_function=predict_function;
 
-    function sigma_sq=objectFunctionKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list)
+% abbreviation:
+% num: number, pred: predict, vari: variable, hyp: hyper parameter
+% NLL: negative log likelihood
+    function [fval,gradient]=objectNLLKriging...
+            (X_dis_sq,Y,x_num,vari_num,hyp,F_reg)
         % function to minimize sigma_sq
         %
-        [~,~,~,~,sigma_sq]=interpolationKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list);
+        theta=exp(hyp);
+        [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
+
+        % calculation negative log likelihood
+        L=chol(cov)';
+        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+
+        % calculate gradient
+        if nargout > 1
+            % gradient
+            gradient=zeros(vari_num,1);
+            for vari_index=1:vari_num
+                dcov_dtheta=-(X_dis_sq(:,:,vari_index).*cov)*theta(vari_index)/vari_num;
+
+                dinv_cov_dtheta=...
+                    -inv_cov*dcov_dtheta*inv_cov;
+
+                dinv_FTRF_dtheta=-inv_FTRF*...
+                    (F_reg'*dinv_cov_dtheta*F_reg)*...
+                    inv_FTRF;
+                
+                dmiu_dtheta=dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
+                    inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
+                
+                dY_Fmiu_dtheta=-F_reg*dmiu_dtheta;
+
+                dsigma2_dtheta=(dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
+                    Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
+                    Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
+                
+                dlnsigma2_dtheta=1/sigma2*dsigma2_dtheta;
+
+                dlndetR=trace(inv_cov*dcov_dtheta);
+
+                gradient(vari_index)=x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
+            end
+        end
     end
-    function [covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpolationKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list)
-        % total riging interpolation function
-        % input X, Y as initial data, theta and base function
-        % output beta and gama, xita
+    function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
+        % kriging interpolation kernel function
+        % Y(x)=beta+Z(x)
         %
-        % Copyright 2022 Adel
-        %
-        % get covariance matrix
-        covariance=zeros(x_number,x_number);
-        for rank_index__=1:x_number
-            for colume_index__=1:rank_index__-1
-                covariance(rank_index__,colume_index__)=...
-                    covariance(colume_index__,rank_index__);
-            end
-            covariance(rank_index__,rank_index__)=1;
-            for colume_index__=rank_index__+1:x_number
-                temp__=0;
-                for variable_index=1:variable_number
-                    temp__=temp__+...
-                        X_dis_sq(rank_index__,colume_index__,variable_index)*...
-                        theta(variable_index);
-                end
-                covariance(rank_index__,colume_index__)=...
-                    exp(-temp__);
-            end
+        cov=zeros(x_num,x_num);
+        for vari_index=1:vari_num
+            cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
         end
-        base_function_number__=size(base_function_list,1);
-        
-        % stabilize
-        covariance=covariance+eye(x_number)*1e-6;
-        
-        % F is base funcion fval of data_point_x
-        fval_reg=zeros(x_number,base_function_number__);
-        for base_function_index__=1:base_function_number__
-            base_function=base_function_list{base_function_index__};
-            for x_index__=1:x_number
-                fval_reg(x_index__,base_function_index__)=...
-                    base_function(X(x_index__,:));
-            end
-        end
-        
+        cov=exp(-cov/vari_num)+eye(x_num)*1e-3;
+
         % coefficient calculation
-        inv_convariance=inv(covariance);
-        beta=(fval_reg'*inv_convariance*fval_reg)\fval_reg'*inv_convariance*Y;
-        sigma_sq=(Y-fval_reg*beta)'*inv_convariance*(Y-fval_reg*beta)/x_number;
+        inv_cov=cov\eye(x_num);
+        inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(size(F_reg,2));
+
+        % basical bias
+        beta=inv_FTRF*(F_reg'*inv_cov*Y);
+        Y_Fmiu=Y-F_reg*beta;
+        sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
+        
     end
-    function [predict_fval,predict_variance]=interpolationKrigingPredictor...
-            (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            theta,beta,gama,sigma_sq,...
-            inv_convariance,fval_reg,base_function_list,predict_x)
+    function [Y_pred,Var_pred]=interpKrigingPredictor...
+            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_num,vari_num,theta,beta,gama,sigma_sq,...
+            inv_cov,fval_reg_nomlz,FTRF,reg_function)
         % kriging interpolation predict function
         % input predict_x and kriging model
         % predict_x is row vector
         % output the predict value
         %
-        % Copyright 2022 Adel
-        %
-        if size(predict_x,1) > 1
-            predict_x=predict_x';
-        end
-        
+        [x_pred_num,~]=size(X_pred);
+        fval_reg_pred=reg_function(X_pred);
+
         % normalize data
-        predict_x=(predict_x-aver_X)./stdD_X;
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
         
-        % predict value
-        base_function_number__=size(base_function_list,1);
-        predict_cov__=exp(-(predict_x-X_nomlz).^2*theta);
-        predict_fval_reg__=zeros(1,base_function_number__);
-        for base_function_index=1:base_function_number__
-            base_function=base_function_list{base_function_index};
-            predict_fval_reg__(1,base_function_index)=base_function(predict_x');
+        % predict covariance
+        predict_cov=zeros(x_num,x_pred_num);
+        for vari_index=1:vari_num
+            predict_cov=predict_cov+...
+                (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2*theta(vari_index);
         end
-        predict_fval=predict_fval_reg__'*beta+predict_cov__'*gama;
+        predict_cov=exp(-predict_cov/vari_num);
+
+        % predict base fval
+        
+        Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
         
         % predict variance
-        u__=fval_reg'*inv_convariance*predict_cov__-predict_fval_reg__;
-        predict_variance=sigma_sq*...
-            (1+u__'/(fval_reg'*inv_convariance*fval_reg)*u__+...
-            -predict_cov__'*inv_convariance*predict_cov__);
+        u__=fval_reg_nomlz'*inv_cov*predict_cov-fval_reg_pred_nomlz';
+        Var_pred=sigma_sq*...
+            (1+u__'/FTRF*u__+...
+            -predict_cov'*inv_cov*predict_cov);
         
         % normalize data
-        predict_fval=predict_fval*stdD_Y+aver_Y;
-        predict_variance=predict_variance*stdD_Y*stdD_Y;
+        Y_pred=Y_pred*stdD_Y+aver_Y;
+        Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
+    end
+    function F_reg=regZero(X)
+        % zero order base funcion
+        %
+        F_reg=ones(size(X,1),1); % zero
+    end
+    function F_reg=regLinear(X)
+        % first order base funcion
+        %
+        F_reg=[ones(size(X,1),1),X]; % linear
     end
 end
 
@@ -1117,7 +1164,7 @@ function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,o
 % con is colume vector, coneq is colume vector
 % var_function is same
 %
-radialbasis_model_fval=interpolationRadialBasisPreModel...
+radialbasis_model_fval=interpRadialBasisPreModel...
     (x_list,fval_list);
 
 if ~isempty(con_list)
@@ -1127,7 +1174,7 @@ if ~isempty(con_list)
         'predict_function',[]);
     radialbasis_model_con=repmat(radialbasis_model_con,[size(con_list,2),1]);
     for con_index=1:size(con_list,2)
-        radialbasis_model_con(con_index)=interpolationRadialBasisPreModel...
+        radialbasis_model_con(con_index)=interpRadialBasisPreModel...
             (x_list,con_list(:,con_index));
     end
 else
@@ -1141,7 +1188,7 @@ if ~isempty(coneq_list)
         'predict_function',[]);
     radialbasis_model_coneq=repmat(radialbasis_model_coneq,[size(coneq_list,2),1]);
     for coneq_index=1:size(coneq_list,2)
-        radialbasis_model_coneq(coneq_index)=interpolationRadialBasisPreModel...
+        radialbasis_model_coneq(coneq_index)=interpRadialBasisPreModel...
             (x_list,coneq_list(:,coneq_index));
     end
 else
@@ -1188,9 +1235,10 @@ output.coneq_list=coneq_list;
         end
     end
 end
-function radialbasis_model=interpolationRadialBasisPreModel...
+
+function radialbasis_model=interpRadialBasisPreModel...
     (X,Y,basis_function)
-% radial basis function interpolation pre model function version 1
+% radial basis function interp pre model function version 1
 % input initial data X, Y, which are real data
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
@@ -1227,11 +1275,11 @@ if isempty(basis_function)
     %     basis_function=@(r) sqrt(r'*r+c*c);
 end
 
-[beta,rdibas_matrix,inv_rdibas_matrix]=interpolationRadialBasis...
+[beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
     (X_nomlz,Y_nomlz,basis_function,x_number);
 
 % initialization predict function
-predict_function=@(predict_x) interpolationRadialBasisPredictor...
+predict_function=@(predict_x) interpRadialBasisPredictor...
     (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
     beta,basis_function,predict_x);
 
@@ -1251,9 +1299,9 @@ radialbasis_model.basis_function=basis_function;
 
 radialbasis_model.predict_function=predict_function;
 
-    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpolationRadialBasis...
+    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
             (X,Y,basis_function,x_number)
-        % interpolation polynomial responed surface core function
+        % interp polynomial responed surface core function
         % calculation beta
         %
         % Copyright 2022 Adel
@@ -1276,10 +1324,10 @@ radialbasis_model.predict_function=predict_function;
         inv_rdibas_matrix=inv(rdibas_matrix);
         beta=inv_rdibas_matrix*Y;
     end
-    function [predict_y]=interpolationRadialBasisPredictor...
+    function [predict_y]=interpRadialBasisPredictor...
             (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             beta,basis_function,predict_x)
-        % radial basis function interpolation predict function
+        % radial basis function interp predict function
         % input predict_x and radialbasis_model model
         % predict_x is row vector
         % output the predict value
@@ -1310,76 +1358,7 @@ radialbasis_model.predict_function=predict_function;
     end
 end
 
-function interpolationVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-delete(figure_handle.Children);
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1)';
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1)';
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou'+low_bou';
-            predict_result(y_index,x_index)=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-end
-end
-
+%% data library
 function [fval_list,con_list,coneq_list]=dataLibraryUpdata...
     (data_library_name,model_function,x_list)
 % updata data library
@@ -1438,6 +1417,7 @@ clear('file_optimalSurrogate_output');
 fclose(file_result);
 clear('file_result');
 end
+
 function [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
     (data_library_name,low_bou,up_bou)
 % load data from data library
@@ -1473,7 +1453,7 @@ if exist(data_library_name,'file')==2
             coneq_number=data(3);
             
             x=data(4:3+variable_number);
-            judge=sum(x < low_bou')+sum(x > up_bou');
+            judge=sum(x < low_bou)+sum(x > up_bou);
             if ~judge
                 x_list=[x_list;x];
                 fval_list=[fval_list;data(4+variable_number)];
@@ -1501,6 +1481,7 @@ else
 end
 end
 
+%% LHD
 function [X,X_new,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,X_exist,...
     low_bou,up_bou,cheapcon_function)
@@ -1523,25 +1504,33 @@ if nargin < 6
                 error('getLatinHypercube: lack variable_number');
             end
         end
-        low_bou=zeros(variable_number,1);
-        up_bou=ones(variable_number,1);
+        low_bou=zeros(1,variable_number);
+        up_bou=ones(1,variable_number);
     end
 end
-iteration_max=20*variable_number;
+iteration_max=100;
 
 % check x_exist_list if meet boundary
 if ~isempty(X_exist)
-    index=find(X_exist < low_bou');
-    index=[index,find(X_exist > up_bou')];
+    index=find(X_exist < low_bou);
+    index=[index,find(X_exist > up_bou)];
     if ~isempty(index)
         error('getLatinHypercube: x_exist_list range error');
     end
     if size(X_exist,2) ~= variable_number
         error('getLatinHypercube: x_exist_list variable_number error');
     end
-    X_exist_nomlz=(X_exist-low_bou')./(up_bou'-low_bou');
+    X_exist_nomlz=(X_exist-low_bou)./(up_bou-low_bou);
 else
     X_exist_nomlz=[];
+end
+
+% check input
+if sample_number < 0
+    X=[];
+    X_new=[];
+    distance_min_nomlz=[];
+    return;
 end
 
 % check x_new_number
@@ -1553,11 +1542,11 @@ if x_new_number < 0
     return;
 end
 
-low_bou_nomlz=zeros(variable_number,1);
-up_bou_nomlz=ones(variable_number,1);
+low_bou_nomlz=zeros(1,variable_number);
+up_bou_nomlz=ones(1,variable_number);
 
 % get initial X_new_nomalize by lhsdesign
-X_new_nomlz=lhsdesign(x_new_number,variable_number);
+X_new_nomlz=rand(x_new_number,variable_number);
 distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
 
 % x is nomalize, so constraint function should change
@@ -1567,110 +1556,83 @@ if ~isempty(cheapcon_function)
 end
 
 iteration=0;
+fval_list=zeros(x_new_number,1);
+gradient_list=zeros(x_new_number,variable_number);
 while iteration < iteration_max
-    %     scatter(X_new_nomlz(:,1),X_new_nomlz(:,2));
-    %     bou=[low_bou_nomlz,up_bou_nomlz]';
-    %     axis(bou(:));axis equal
-    %     radius=1/6;
-    %     hold on;
-    %     rectangle('Position',[-radius+0.5,-radius+0.5,2*radius,2*radius],'Curvature',[1 1])
-    %     hold off;
-    
     % change each x place by newton methods
-    fval_list=zeros(x_new_number,1);
-    gradient_list=zeros(variable_number,x_new_number);
-    for x_new_index=1:x_new_number
+    for x_index=1:x_new_number    
         % get gradient
-        [fval_list(x_new_index,1),gradient_list(:,x_new_index),~]=objectFunctionXPlace...
-            (X_new_nomlz(x_new_index,:)',[X_new_nomlz(1:x_new_index-1,:);X_new_nomlz(x_new_index+1:end,:);X_exist_nomlz],...
-            variable_number,low_bou_nomlz,up_bou_nomlz,cheapcon_function);
+        [fval_list(x_index,1),gradient_list(x_index,:)]=objectFunctionXPlace...
+            (X_new_nomlz(x_index,:),[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
+            sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
     end
     
     % normalize fval
     fval_list=fval_list/max(fval_list);
-    for x_new_index=1:x_new_number
-        x=X_new_nomlz(x_new_index,:)'-...
-            fval_list(x_new_index,1)*gradient_list(:,x_new_index)/norm(gradient_list(:,x_new_index),2)*...
-            distance_min_nomlz*(1-iteration/iteration_max);
-        for variable_index=1:variable_number
-            if x(variable_index,1) > 1
-                x(variable_index,1)=1;
-            end
-            if x(variable_index,1) < 0
-                x(variable_index,1)=0;
-            end
-        end
-        X_new_nomlz(x_new_index,:)=x';
+    for x_index=1:x_new_number
+        C=fval_list(x_index,1)*distance_min_nomlz*(1-iteration/iteration_max);
+        x=X_new_nomlz(x_index,:)+...
+            -gradient_list(x_index,:)/...
+            norm(gradient_list(x_index,:))*C;
+        x=min(x,up_bou_nomlz);
+        x=max(x,low_bou_nomlz);
+        X_new_nomlz(x_index,:)=x;
     end
     
     iteration=iteration+1;
 end
 distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
-X_new=X_new_nomlz.*(up_bou'-low_bou')+low_bou';
+X_new=X_new_nomlz.*(up_bou-low_bou)+low_bou;
 X=[X_new;X_exist];
 
-    function [fval,gradient,hessian]=objectFunctionXPlace...
-            (x,X_surplus,variable_number,low_bou,up_bou,cheapcon_function)
+    function [fval,gradient]=objectFunctionXPlace...
+            (x,X_surplus,sample_number,variable_number,low_bou,up_bou,cheapcon_function)
         % function describe distance between X and X_supply
         % x is colume vector and X_surplus is matrix which is num-1 x var
         % low_bou_limit__ and up_bou_limit__ is colume vector
         % variable in colume
         %
-        [~,variable_number__]=size(X_surplus);
-        X_surplus=X_surplus';
+        a__=10/variable_number;
+        a_bou__=30/sample_number;
         
-        sigma__=10;
-        boundary__=0.1^variable_number__;
+        sign__=((x > X_surplus)-0.5)*2;
         
-        sign__=((x>X_surplus)-0.5)*2;
+        xi__=-a__*(x-X_surplus).*sign__;
+        sum_xi__=sum(xi__,2);
+        psi__=a__*(low_bou-x)*a_bou__;
+        zeta__=a__*(x-up_bou)*a_bou__;
         
-        xi__=-sigma__*(x-X_surplus).*sign__;
-        sum_xi__=sum(xi__,1);
-        psi__=sigma__*(low_bou-x);
-        zeta__=sigma__*(x-up_bou);
-        
+%         exp_xi__=exp(xi__);
         exp_sum_xi__=exp(sum_xi__);
         exp_psi__=exp(psi__);
         exp_zeta__=exp(zeta__);
         
-        xi_DF=-sigma__*sign__;
-        % sum_xi_DF=sum(xi_DF,2);
-        psi_DF=-sigma__*ones(variable_number__,1);
-        zeta_DF=sigma__*ones(variable_number__,1);
-        
         % get fval
-        fval=sum(exp_sum_xi__,2)+...
-            sum(boundary__*exp_psi__+...
-            boundary__*exp_zeta__,1);
+        fval=sum(exp_sum_xi__,1)+...
+            sum(exp_psi__+exp_zeta__,2);
         
         % get gradient
-        gradient=sum(exp_sum_xi__.*xi_DF,2)+...
-            boundary__*exp_psi__.*psi_DF+...
-            boundary__*exp_zeta__.*zeta_DF;
-        
-        % get hessian
-        hessian=exp_sum_xi__.*xi_DF*xi_DF'+...
-            diag(boundary__*exp_psi__.*psi_DF.*psi_DF+...
-            boundary__*exp_zeta__.*zeta_DF.*zeta_DF);
+        gradient=sum(-a__*sign__.*exp_sum_xi__,1)+...
+            -a__*exp_psi__*a_bou__+...
+            a__*exp_zeta__*a_bou__;
         
         if ~isempty(cheapcon_function)
             fval_con=cheapcon_function(x);
             fval=fval+fval_con;
-            [gradient_con,hessian_con]=differ...
+            [gradient_con]=differ...
                 (cheapcon_function,x,fval_con,variable_number);
             gradient=gradient+gradient_con;
-            hessian=hessian+hessian_con;
         end
         
-        function [gradient,hessian]=differ(differ_function,x,fval,variable_number,step)
+        function [gradient]=differ(differ_function,x,fval,variable_number,step)
             % differ function to get gradient and hessian
+            % gradient is rank vector
             %
             if nargin < 5
                 step=1e-6;
             end
             fval__=zeros(variable_number,2); % backward is 1, forward is 2
-            gradient=zeros(variable_number,1);
-            hessian=zeros(variable_number);
+            gradient=zeros(1,variable_number);
             
             % fval and gradient
             for variable_index__=1:variable_number
@@ -1684,25 +1646,6 @@ X=[X_new;X_exist];
                 
                 gradient(variable_index__)=...
                     (fval__(variable_index__,2)-fval__(variable_index__,1))/2/step;
-            end
-            
-            % hessian
-            for variable_index__=1:variable_number
-                hessian(variable_index__,variable_index__)=...
-                    (fval__(variable_index__,2)-2*fval+fval__(variable_index__,1))/step/step;
-                for variable_index_next__=variable_index__+1:variable_number
-                    x_for_for=x;
-                    x_for_for(variable_index__)=x_for_for(variable_index__)+step;
-                    x_for_for(variable_index_next__)=x_for_for(variable_index_next__)+step;
-                    
-                    hessian(variable_index__,variable_index_next__)=(...
-                        differ_function(x_for_for)-...
-                        fval__(variable_index__,2)-fval__(variable_index_next__,2)+...
-                        fval...
-                        )/step/step;
-                    hessian(variable_index_next__,variable_index__)=...
-                        hessian(variable_index__,variable_index_next__);
-                end
             end
         end
     end
@@ -1732,42 +1675,6 @@ X=[X_new;X_exist];
                     search_range__ = distance_temp__;
                 end
                 x_next_index__=x_next_index__+1;
-            end
-        end
-        distance_min__=sqrt(distance_min__);
-    end
-    function distance_min__=getMinDistanceIter...
-            (x_list__,x_exist_list__)
-        % get distance min from x_list
-        %
-        % sort x_supply_list_initial to decrese distance calculate times
-        x_list__=sortrows(x_list__,1);
-        [sample_number__,variable_number__]=size(x_list__);
-        distance_min__=variable_number__;
-        for x_index__=1:sample_number__
-            x_curr__=x_list__(x_index__,:);
-            x_next_index__=x_index__ + 1;
-            % only search in min_distance(x_list had been sort)
-            search_range__=variable_number__;
-            while x_next_index__ <= sample_number__ &&...
-                    (x_list__(x_next_index__,1)-x_list__(x_index__,1))^2 ...
-                    < search_range__
-                x_next__=x_list__(x_next_index__,:);
-                distance_temp__=sum((x_next__-x_curr__).^2);
-                if distance_temp__ < distance_min__
-                    distance_min__ = distance_temp__;
-                end
-                if distance_temp__ < search_range__
-                    search_range__ = distance_temp__;
-                end
-                x_next_index__=x_next_index__+1;
-            end
-            for x_exist_index=1:size(x_exist_list__,1)
-                x_next__=x_exist_list__(x_exist_index,:);
-                distance_temp__=sum((x_next__-x_curr__).^2);
-                if distance_temp__ < distance_min__
-                    distance_min__ = distance_temp__;
-                end
             end
         end
         distance_min__=sqrt(distance_min__);

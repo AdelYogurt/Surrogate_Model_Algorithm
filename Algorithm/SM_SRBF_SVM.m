@@ -125,6 +125,7 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 
+%% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
     cheapcon_function,model_function,....
@@ -226,12 +227,20 @@ else
     expensive_nonlcon_flag=0;
 end
 
-% NFE setting
+% NFE and iteration setting
 if isempty(NFE_max)
     if expensive_nonlcon_flag
         NFE_max=50*variable_number;
     else
         NFE_max=20*variable_number;
+    end
+end
+
+if isempty(iteration_max)
+    if expensive_nonlcon_flag
+        iteration_max=50*variable_number;
+    else
+        iteration_max=20*variable_number;
     end
 end
 
@@ -532,7 +541,7 @@ while ~done
     % step 7-3
     % calculate clustering center
     if ~isempty(x_sup_list)
-        FC_model=classifyFuzzyClusteringFeatureSpace...
+        FC_model=classifyFuzzyClustering...
             (x_sup_list,1,low_bou,up_bou,m);
         x_center=FC_model.center_list';
     end
@@ -636,6 +645,7 @@ output.result_fval_best=result_fval_best;
     end
 end
 
+%% auxiliary function
 function [x_best,fval_best,exitflag,output]=findMinMSP...
     (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
     cheapcon_function,nonlcon_torlance)
@@ -719,6 +729,7 @@ fmincon_option=optimoptions('fmincon','FunctionTolerance',1e-6,'ConstraintTolera
         end
     end
 end
+
 function [x_best,fval_best,con_best,coneq_best]=findMinRaw...
     (x_list,fval_list,con_list,coneq_list,...
     cheapcon_function,nonlcon_torlance)
@@ -787,20 +798,17 @@ else
 end
 end
 
-function FC_model=classifyFuzzyClusteringFeatureSpace...
-    (X,classify_number,low_bou,up_bou,m,kernal_function)
-% get fuzzy cluster model with feature space
-% kernal function recommend kernal_function=@(sq) exp(-sq/2*1000);
+%% FCM
+function FC_model=classifyFuzzyClustering...
+    (X,classify_number,low_bou,up_bou,m)
+% get fuzzy cluster model
 % X is x_number x variable_number matrix
 % center_list is classify_number x variable_number matrix
 %
-if nargin < 6
-    kernal_function=[];
-    if nargin < 4
-        up_bou=[];
-        if nargin < 3
-            low_bou=[];
-        end
+if nargin < 4
+    up_bou=[];
+    if nargin < 3
+        low_bou=[];
     end
 end
 iteration_max=100;
@@ -808,18 +816,18 @@ torlance=1e-3;
 
 [x_number,variable_number]=size(X);
 
-if isempty(kernal_function)
-    kernal_function=@(sq) exp(-sq/2*1000);
-end
-
 % nomalization data
 if isempty(low_bou)
-    low_bou=min(X,[],1)';
+    low_bou=min(X,[],1);
+else
+    low_bou=low_bou(:)';
 end
 if isempty(up_bou)
-    up_bou=max(X,[],1)';
+    up_bou=max(X,[],1);
+else
+    up_bou=up_bou(:)';
 end
-X_nomlz=(X-low_bou')./(up_bou'-low_bou');
+X_nomlz=(X-low_bou)./(up_bou-low_bou);
 
 % if x_number equal 1, clustering cannot done
 if x_number==1
@@ -827,31 +835,35 @@ if x_number==1
     FC_model.X_normalize=X_nomlz;
     FC_model.center_list=X;
     FC_model.fval_loss_list=[];
+    FC_model.x_class_list=ones(x_number,1);
     return;
 end
 
-U=zeros(classify_number,x_number);
+U=zeros(x_number,classify_number);
 center_list=rand(classify_number,variable_number)*0.5;
 iteration=0;
 done=0;
 fval_loss_list=zeros(iteration_max,1);
 
-% get X_center_dis_sq
-X_center_dis_sq=zeros(classify_number,x_number);
-for classify_index=1:classify_number
-    for x_index=1:x_number
-        X_center_dis_sq(classify_index,x_index)=...
-            getSq((X_nomlz(x_index,:)-center_list(classify_index,:)));
+% get X_center_dis_sq and classify x to each x center
+% classify_number x x_number matrix
+X_center_dis_sq=zeros(x_number,classify_number);
+x_class_list=zeros(x_number,1);
+for x_index=1:x_number
+    for classify_index=1:classify_number
+        temp=(X_nomlz(x_index,:)-center_list(classify_index,:));
+        X_center_dis_sq(x_index,classify_index)=temp*temp';
     end
+    [~,x_class_list(x_index)]=min(X_center_dis_sq(x_index,:));
 end
 
 while ~done
     % updata classify matrix U
+    % classify matrix U is x weigth of each center
     for classify_index=1:classify_number
         for x_index=1:x_number
-            U(classify_index,x_index)=...
-                1/sum(((2-2*kernal_function(X_center_dis_sq(classify_index,x_index)))./...
-                (2-2*kernal_function(X_center_dis_sq(:,x_index)))).^(1/(m-1)));
+            U(x_index,classify_index)=...
+                1/sum((X_center_dis_sq(x_index,classify_index)./X_center_dis_sq(x_index,:)).^(1/(m-1)));
         end
     end
     
@@ -859,18 +871,20 @@ while ~done
     center_list_old=center_list;
     for classify_index=1:classify_number
         center_list(classify_index,:)=...
-            sum((U(classify_index,:)').^m.*X_nomlz,1)./...
-            sum((U(classify_index,:)').^m,1);
+            sum((U(:,classify_index)).^m.*X_nomlz,1)./...
+            sum((U(:,classify_index)).^m,1);
     end
     
     % updata X_center_dis_sq
-    X_center_dis_sq=zeros(classify_number,x_number);
-    for classify_index=1:classify_number
-        for x_index=1:x_number
-            X_center_dis_sq(classify_index,x_index)=...
-                getSq((X_nomlz(x_index,:)-center_list(classify_index,:)));
+    for x_index=1:x_number
+        for classify_index=1:classify_number
+            temp=(X_nomlz(x_index,:)-center_list(classify_index,:));
+            X_center_dis_sq(x_index,classify_index)=temp*temp';
         end
+        [~,x_class_list(x_index)]=min(X_center_dis_sq(x_index,:));
     end
+    
+%     plot(center_list(:,1),center_list(:,2));
     
     % forced interrupt
     if iteration > iteration_max
@@ -878,29 +892,26 @@ while ~done
     end
     
     % convergence judgment
-    if sum(sum(center_list_old-center_list).^2)<torlance
+    if sum(sum(center_list_old-center_list).^2) < torlance
         done=1;
     end
     
     iteration=iteration+1;
-    fval_loss_list(iteration)=sum(sum(U.^m.*(2-2*kernal_function(X_center_dis_sq))));
+    fval_loss_list(iteration)=sum(sum(U.^m.*X_center_dis_sq));
 end
 fval_loss_list(iteration+1:end)=[];
-center_list=center_list.*(up_bou'-low_bou')+low_bou';
+center_list=center_list.*(up_bou-low_bou)+low_bou;
 
 FC_model.X=X;
 FC_model.X_normalize=X_nomlz;
 FC_model.center_list=center_list;
 FC_model.fval_loss_list=fval_loss_list;
+FC_model.x_class_list=x_class_list;
 
-    function sq=getSq(dx)
-        % dx is 1 x variable_number matrix
-        %
-        sq=dx*dx';
-    end
 end
 
-function [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
+%% SVM
+function [predict_function,SVM_model]=classifySupportVectorMachine...
     (X,class,C,low_bou,up_bou,kernel_function)
 % generate support vector machine model version 0
 % version 0 use fmincon to get alpha
@@ -917,16 +928,16 @@ if nargin < 6
     end
 end
 
-[x_number,~]=size(X);
+[x_number,variable_number]=size(X);
 
 % normalization data
 if nargin < 5
-    up_bou=max(X)';
+    up_bou=max(X);
     if nargin < 4
-        low_bou=min(X)';
+        low_bou=min(X);
     end
 end
-X_nomlz=(X-low_bou')./(up_bou'-low_bou');
+X_nomlz=(X-low_bou)./(up_bou-low_bou);
 
 % transfer class into y
 Y=class;
@@ -938,7 +949,8 @@ end
 
 % default kernal function
 if isempty(kernel_function)
-    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2)));
+    sigma=-100*log(1/sqrt(x_number))/variable_number^2;
+    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*sigma);
 end
 
 % initialization kernal function process X_cov
@@ -964,7 +976,7 @@ else
     up_bou_fmincon=C*ones(x_number,1);
 end
 Aeq=Y';
-fmincon_options = optimoptions('fmincon','Display','none','Algorithm','sqp');
+fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp');
 alpha=fmincon(object_function_SVM,alpha_initial,...
     [],[],Aeq,0,low_bou_fmincon,up_bou_fmincon,[],fmincon_options);
 
@@ -977,7 +989,7 @@ alpha_Y_cov=X_cov*alpha_Y;
 b=sum(Y(index_list)-alpha_Y_cov(index_list))/length(index_list);
 
 % generate predict function
-SVM_predict_function=@(x) classifySupportVectorMachinePredictor...
+predict_function=@(x) classifySupportVectorMachinePredictor...
     (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function);
 
 % output model
@@ -991,7 +1003,7 @@ SVM_model.alpha=alpha;
 SVM_model.w=w;
 SVM_model.b=b;
 SVM_model.kernel_function=kernel_function;
-SVM_model.SVM_predict_function=SVM_predict_function;
+SVM_model.predict_function=predict_function;
 
     function fval=objectFunctionSVM(alpha,X_inner_product,Y)
         % support vector machine maximum object function
@@ -1005,8 +1017,10 @@ SVM_model.SVM_predict_function=SVM_predict_function;
         % predict value of x is 1 or -1
         % x input is colume vector
         %
+        x=x(:);
+        
         x_number__=size(X_nomlz,1);
-        x_nomlz=(x-low_bou)./(up_bou-low_bou);
+        x_nomlz=(x-low_bou')./(up_bou'-low_bou');
         X_inner_product__=zeros(x_number__,1);
         for x_index__=1:x_number__
             X_inner_product__(x_index__)=...
@@ -1021,75 +1035,8 @@ SVM_model.SVM_predict_function=SVM_predict_function;
         end
     end
 end
-function classifySupportVectorMachineVisualization...
-    (SVM_model,low_bou,up_bou)
-% visualization SVM_model
-% red is 1, blue is 0
-%
-if nargin < 1
-    error('classifySupportVectorMachineVisualization: not enough input');
-end
-X=SVM_model.X;
-Y=SVM_model.Y;
-% nomlz_X=SVM_model.nomlz_X;
-% alpha=SVM_model.alpha;
-% w=SVM_model.w;
-% b=SVM_model.b;
-% kernel_function=SVM_model.kernel_function;
-SVM_predict_function=SVM_model.SVM_predict_function;
 
-if nargin < 3
-    up_bou=max(X)';
-    if nargin < 2
-        low_bou=min(X)';
-    end
-end
-
-% check dimension
-[x_number,variable_number]=size(X);
-if variable_number ~= 2
-    error('classifySupportVectorMachineVisualization: dimension do not equal 2');
-end
-
-% find point in boundary and label
-X_positive=[];
-X_negative=[];
-for x_index=1:x_number
-    x=X(x_index,:)';
-    if ~(sum(x > up_bou) || sum(x < low_bou))
-        if Y(x_index) > 0
-            X_positive=[X_positive;x'];
-        else
-            X_negative=[X_negative;x'];
-        end
-    end
-end
-
-% draw zero value line
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-[X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-predict_class=zeros(grid_number+1);
-predict_fval=zeros(grid_number+1);
-for x_index=1:grid_number+1
-    for y_index=1:grid_number+1
-        predict_x=([x_index;y_index]-1).*d_bou+low_bou;
-        [predict_class(y_index,x_index),predict_fval(y_index,x_index)]=...
-            SVM_predict_function(predict_x);
-    end
-end
-contour(X_draw,Y_draw,predict_class);
-% contour(X_draw,Y_draw,predict_fval,[0.5,0.5]);
-
-% draw point
-if ~isempty(X_positive)
-    line(X_positive(:,1),X_positive(:,2),'LineStyle','none','Marker','o','Color','r');
-end
-if ~isempty(X_negative)
-    line(X_negative(:,1),X_negative(:,2),'LineStyle','none','Marker','o','Color','b');
-end
-end
-
+%% surrogate model
 function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output]=getRadialBasisModel...
     (x_list,fval_list,con_list,coneq_list)
 % base on library_data to create radialbasis model and function
@@ -1840,79 +1787,13 @@ ensemleradialbasis_model.predict_function=predict_function;
     end
 end
 
-function interpolationVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-delete(figure_handle.Children);
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1)';
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1)';
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou'+low_bou';
-            predict_result(y_index,x_index)=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-end
-end
-
+%% data library
 function [fval_list,con_list,coneq_list]=dataLibraryUpdata...
     (data_library_name,model_function,x_list)
 % updata data library
+% updata format:
+% variable_number, fval_number, con_number, coneq_number
+% x, fval, con, coneq
 %
 fval_list=[];
 con_list=[];
@@ -1920,30 +1801,38 @@ coneq_list=[];
 [x_number,variable_number]=size(x_list);
 
 if ~strcmp(data_library_name(end-3:end),'.txt')
-   data_library_name=[data_library_name,'.txt'];
+    data_library_name=[data_library_name,'.txt'];
 end
 
 % store format
 x_format_base='%.8e ';
 fval_format_base='%.8e ';
 x_format=repmat(x_format_base,1,variable_number);
-file_optimalSurrogate_output = fopen(data_library_name,'a');
-file_result = fopen('result_total.txt','a');
+file_optimalSurrogate_output=fopen(data_library_name,'a');
+file_result=fopen('result_total.txt','a');
 
-% updata
+% updata format:
+% variable_number, fval_number, con_number, coneq_number
+% x, fval, con, coneq
 for x_index=1:x_number
-    x=x_list(x_index,:)';
+    x=x_list(x_index,:);
     [fval,con,coneq]=model_function(x);
-    fval_list=[fval_list;fval];
+    fval=fval(:);
+    con=con(:);
+    coneq=coneq(:);
+    fval_list=[fval_list;fval'];
     con_list=[con_list;con'];
     coneq_list=[coneq_list;coneq'];
     
     % write data to txt_optimalSurrogateSADEKTS
     fprintf(file_optimalSurrogate_output,'%d ',variable_number);
+    fprintf(file_optimalSurrogate_output,'%d ',length(fval));
     fprintf(file_optimalSurrogate_output,'%d ',length(con));
     fprintf(file_optimalSurrogate_output,'%d ',length(coneq));
+    
     fprintf(file_optimalSurrogate_output,x_format,x);
-    fprintf(file_optimalSurrogate_output,fval_format_base,fval);
+    fval_format=repmat(fval_format_base,1,length(fval));
+    fprintf(file_optimalSurrogate_output,fval_format,fval);
     fval_format=repmat(fval_format_base,1,length(con));
     fprintf(file_optimalSurrogate_output,fval_format,con);
     fval_format=repmat(fval_format_base,1,length(coneq));
@@ -1952,10 +1841,13 @@ for x_index=1:x_number
     
     % write data to txt_result
     fprintf(file_result,'%d ',variable_number);
+    fprintf(file_result,'%d ',length(fval));
     fprintf(file_result,'%d ',length(con));
     fprintf(file_result,'%d ',length(coneq));
+    
     fprintf(file_result,x_format,x);
-    fprintf(file_result,fval_format_base,fval);
+    fval_format=repmat(fval_format_base,1,length(fval));
+    fprintf(file_result,fval_format,fval);
     fval_format=repmat(fval_format_base,1,length(con));
     fprintf(file_result,fval_format,con);
     fval_format=repmat(fval_format_base,1,length(coneq));
@@ -1968,10 +1860,14 @@ clear('file_optimalSurrogate_output');
 fclose(file_result);
 clear('file_result');
 end
+
 function [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
     (data_library_name,low_bou,up_bou)
 % load data from data library
 % low_bou, up_bou is range of data
+% updata format:
+% variable_number, fval_number, con_number, coneq_number
+% x, fval, con, coneq
 %
 if nargin < 3
     up_bou=inf;
@@ -1984,9 +1880,12 @@ if nargin < 3
 end
 
 if ~strcmp(data_library_name(end-3:end),'.txt')
-   data_library_name=[data_library_name,'.txt'];
+    data_library_name=[data_library_name,'.txt'];
 end
 
+% updata format:
+% variable_number, fval_number, con_number, coneq_number
+% x, fval, con, coneq
 if exist(data_library_name,'file')==2
     data_list=importdata(data_library_name);
     if ~isempty(data_list)
@@ -1998,20 +1897,26 @@ if exist(data_library_name,'file')==2
         
         for data_index=1:size(data_list,1)
             data=data_list(data_index,:);
-            variable_number=data(1);
-            con_number=data(2);
-            coneq_number=data(3);
             
-            x=data(4:3+variable_number);
-            judge=sum(x < low_bou')+sum(x > up_bou');
+            variable_number=data(1);
+            fval_number=data(2);
+            con_number=data(3);
+            coneq_number=data(4);
+            
+            base=5;
+            x=data(base:base+variable_number-1);
+            judge=sum(x < low_bou)+sum(x > up_bou);
             if ~judge
                 x_list=[x_list;x];
-                fval_list=[fval_list;data(4+variable_number)];
-                con=data(5+variable_number:4+variable_number+con_number);
+                base=base+variable_number;
+                fval_list=[fval_list;data(base:base+fval_number-1)];
+                base=base+fval_number;
+                con=data(base:base+con_number-1);
                 if ~isempty(con)
                     con_list=[con_list;con];
                 end
-                coneq=data(6+variable_number+con_number:5+variable_number+con_number+coneq_number);
+                base=base+con_number;
+                coneq=data(base:base+coneq_number-1);
                 if ~isempty(coneq)
                     coneq_list=[coneq_list;coneq];
                 end
@@ -2031,16 +1936,23 @@ else
 end
 end
 
+%% LHD
 function [X,X_new,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,X_exist,...
     low_bou,up_bou,cheapcon_function)
 % generate sample sequence latin hypercube
-% more uniform point distribution by simulating particle motion
+% election sequential method is used(sample and iteration)
+%
 % sample number is total point in area
 % default low_bou is 0, up_bou is 1, cheapcon_function is []
 % low_bou and up_bou is colume vector
-% x in x_exist_list, x_list, supply_x_list is row vector
-% x_exist_list should meet bou
+% X_exist, X, supply_X is x_number x variable_number matrix
+% X_exist should meet bou
+%
+% reference:
+% [1]LONG T, LI X, SHI R, et al., Gradient-Free Trust-Region-Based
+% Adaptive Response Surface Method for Expensive Aircraft Optimization[J].
+% AIAA Journal, 2018, 56(2): 862-73.
 %
 % Copyright 2022 Adel
 %
@@ -2048,199 +1960,104 @@ if nargin < 6
     cheapcon_function=[];
     if nargin < 5
         if nargin < 3
-            X_exist=[];
             if nargin < 2
                 error('getLatinHypercube: lack variable_number');
             end
         end
-        low_bou=zeros(1,variable_number);
-        up_bou=ones(1,variable_number);
+        low_bou=zeros(variable_number,1);
+        up_bou=ones(variable_number,1);
     end
 end
-iteration_max=100;
 
 % check x_exist_list if meet boundary
 if ~isempty(X_exist)
+    if size(X_exist,2) ~= variable_number
+        error('getLatinHypercube: x_exist_list variable_number error');
+    end
     index=find(X_exist < low_bou);
     index=[index,find(X_exist > up_bou)];
     if ~isempty(index)
         error('getLatinHypercube: x_exist_list range error');
-    end
-    if size(X_exist,2) ~= variable_number
-        error('getLatinHypercube: x_exist_list variable_number error');
     end
     X_exist_nomlz=(X_exist-low_bou)./(up_bou-low_bou);
 else
     X_exist_nomlz=[];
 end
 
-% check input
-if sample_number < 0
+if sample_number <= 0
     X=[];
     X_new=[];
     distance_min_nomlz=[];
     return;
 end
 
-% check x_new_number
+iteration_max=1000*variable_number;
 x_new_number=sample_number-size(X_exist,1);
-if x_new_number < 0
+if x_new_number <= 0
     X=X_exist;
     X_new=[];
     distance_min_nomlz=getMinDistance(X_exist_nomlz);
     return;
 end
 
-low_bou_nomlz=zeros(1,variable_number);
-up_bou_nomlz=ones(1,variable_number);
-
-% get initial X_new_nomalize by lhsdesign
-X_new_nomlz=rand(x_new_number,variable_number);
-distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
-
-% x is nomalize, so constraint function should change
+% get quasi-feasible point
+x_initial_number=100*x_new_number;
 if ~isempty(cheapcon_function)
-    cheapcon_function=@(x) ...
-        max(max(sample_number*cheapcon_function(x.*(up_bou-low_bou)+low_bou)+1,0),[],1);
+    X_supply_quasi_nomlz=[];
+    % check if have enough X_supply_nomlz
+    while size(X_supply_quasi_nomlz,1) < 100*x_new_number
+        X_supply_initial_nomlz=rand(x_initial_number,variable_number);
+        x_index=1;
+        while x_index <= size(X_supply_initial_nomlz,1)
+            x_supply=X_supply_initial_nomlz(x_index,:).*(up_bou-low_bou)+low_bou;
+            if cheapcon_function(x_supply) > 0
+                X_supply_initial_nomlz(x_index,:)=[];
+            else
+                x_index=x_index+1;
+            end
+        end
+        X_supply_quasi_nomlz=[X_supply_quasi_nomlz;X_supply_initial_nomlz];
+    end
+else
+    X_supply_quasi_nomlz=rand(x_initial_number,variable_number);
 end
 
-pic_num=1;
-
+% iterate and get final x_supply_list
 iteration=0;
-fval_list=zeros(x_new_number,1);
-gradient_list=zeros(x_new_number,variable_number);
-while iteration < iteration_max
-%     scatter(X_new_nomlz(:,1),X_new_nomlz(:,2));
-%     bou=[low_bou_nomlz(1:2);up_bou_nomlz(1:2)];
-%     axis(bou(:));
-%     grid on;
-%     
-%     radius=1;
-%     hold on;
-%     rectangle('Position',[-radius,-radius,2*radius,2*radius],'Curvature',[1 1])
-%     hold off;
-%     
-%     drawnow;
-%     F=getframe(gcf);
-%     I=frame2im(F);
-%     [I,map]=rgb2ind(I,256);
-%     if pic_num == 1
-%         imwrite(I,map,'show_trajectory_constrain.gif','gif','Loopcount',inf,'DelayTime',0.1);
-%     else
-%         imwrite(I,map,'show_trajectory_constrain.gif','gif','WriteMode','append','DelayTime',0.1);
-%     end
-%     pic_num = pic_num + 1;
+x_supply_quasi_number=size(X_supply_quasi_nomlz,1);
+distance_min_nomlz=0;
+X_new_nomlz=[];
+while iteration <= iteration_max
+    % random select x_new_number X to X_trial_nomlz
+    x_select_index=randperm(x_supply_quasi_number,x_new_number);
     
-    % change each x place by newton methods
-    for x_index=1:x_new_number
-        draw_function=@(x) objectFunctionXPlace...
-            (x,[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
-            sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
-%         drawFunction(draw_function,low_bou_nomlz,up_bou_nomlz);
-        
-        % get gradient
-        [fval_list(x_index,1),gradient_list(x_index,:)]=objectFunctionXPlace...
-            (X_new_nomlz(x_index,:),[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
-            sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
-        
-%         [gradient,hessian]=differ(draw_function,X_new_nomlz(x_index,:));
-    end
+    % get distance min itertion X_
+    distance_min_iteration=getMinDistanceIter...
+        (X_supply_quasi_nomlz(x_select_index,:),X_exist_nomlz);
     
-    % normalize fval
-    fval_list=fval_list/max(fval_list);
-    for x_index=1:x_new_number
-        C=fval_list(x_index,1)*distance_min_nomlz*(1-iteration/iteration_max);
-        x=X_new_nomlz(x_index,:)+...
-            -gradient_list(x_index,:)/...
-            norm(gradient_list(x_index,:))*C;
-        x=min(x,up_bou_nomlz);
-        x=max(x,low_bou_nomlz);
-        X_new_nomlz(x_index,:)=x;
+    % if distance_min_iteration is large than last time
+    if distance_min_iteration > distance_min_nomlz
+        distance_min_nomlz=distance_min_iteration;
+        X_new_nomlz=X_supply_quasi_nomlz(x_select_index,:);
     end
     
     iteration=iteration+1;
 end
-distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
 X_new=X_new_nomlz.*(up_bou-low_bou)+low_bou;
 X=[X_new;X_exist];
+distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
 
-    function [fval,gradient]=objectFunctionXPlace...
-            (x,X_surplus,sample_number,variable_number,low_bou,up_bou,cheapcon_function)
-        % function describe distance between X and X_supply
-        % x is colume vector and X_surplus is matrix which is num-1 x var
-        % low_bou_limit__ and up_bou_limit__ is colume vector
-        % variable in colume
-        %
-        a__=10/variable_number;
-        a_bou__=30/sample_number;
-        
-        sign__=((x > X_surplus)-0.5)*2;
-        
-        xi__=-a__*(x-X_surplus).*sign__;
-        sum_xi__=sum(xi__,2);
-        psi__=a__*(low_bou-x)*a_bou__;
-        zeta__=a__*(x-up_bou)*a_bou__;
-        
-%         exp_xi__=exp(xi__);
-        exp_sum_xi__=exp(sum_xi__);
-        exp_psi__=exp(psi__);
-        exp_zeta__=exp(zeta__);
-        
-        % get fval
-        fval=sum(exp_sum_xi__,1)+...
-            sum(exp_psi__+exp_zeta__,2);
-        
-        % get gradient
-        gradient=sum(-a__*sign__.*exp_sum_xi__,1)+...
-            -a__*exp_psi__*a_bou__+...
-            a__*exp_zeta__*a_bou__;
-        
-        if ~isempty(cheapcon_function)
-            fval_con=cheapcon_function(x);
-            fval=fval+fval_con;
-            [gradient_con]=differ...
-                (cheapcon_function,x,fval_con,variable_number);
-            gradient=gradient+gradient_con;
-        end
-        
-        function [gradient]=differ(differ_function,x,fval,variable_number,step)
-            % differ function to get gradient and hessian
-            % gradient is rank vector
-            %
-            if nargin < 5
-                step=1e-6;
-            end
-            fval__=zeros(variable_number,2); % backward is 1, forward is 2
-            gradient=zeros(1,variable_number);
-            
-            % fval and gradient
-            for variable_index__=1:variable_number
-                x_forward__=x;
-                x_backward__=x;
-                x_backward__(variable_index__)=x_backward__(variable_index__)-step;
-                fval__(variable_index__,1)=differ_function(x_backward__);
-                
-                x_forward__(variable_index__)=x_forward__(variable_index__)+step;
-                fval__(variable_index__,2)=differ_function(x_forward__);
-                
-                gradient(variable_index__)=...
-                    (fval__(variable_index__,2)-fval__(variable_index__,1))/2/step;
-            end
-        end
-    end
     function distance_min__=getMinDistance(x_list__)
         % get distance min from x_list
         %
-        
         % sort x_supply_list_initial to decrese distance calculate times
         x_list__=sortrows(x_list__,1);
-        sample_number__=size(x_list__,1);
-        variable_number__=size(x_list__,2);
+        [sample_number__,variable_number__]=size(x_list__);
         distance_min__=variable_number__;
         for x_index__=1:sample_number__
             x_curr__=x_list__(x_index__,:);
             x_next_index__=x_index__ + 1;
-            % first dimension only search in min_distance
+            % only search in min_distance(x_list had been sort)
             search_range__=variable_number__;
             while x_next_index__ <= sample_number__ &&...
                     (x_list__(x_next_index__,1)-x_list__(x_index__,1))^2 ...
@@ -2254,6 +2071,42 @@ X=[X_new;X_exist];
                     search_range__ = distance_temp__;
                 end
                 x_next_index__=x_next_index__+1;
+            end
+        end
+        distance_min__=sqrt(distance_min__);
+    end
+    function distance_min__=getMinDistanceIter...
+            (x_list__,x_exist_list__)
+        % get distance min from x_list
+        %
+        % sort x_supply_list_initial to decrese distance calculate times
+        x_list__=sortrows(x_list__,1);
+        [sample_number__,variable_number__]=size(x_list__);
+        distance_min__=variable_number__;
+        for x_index__=1:sample_number__
+            x_curr__=x_list__(x_index__,:);
+            x_next_index__=x_index__ + 1;
+            % only search in min_distance(x_list had been sort)
+            search_range__=variable_number__;
+            while x_next_index__ <= sample_number__ &&...
+                    (x_list__(x_next_index__,1)-x_list__(x_index__,1))^2 ...
+                    < search_range__
+                x_next__=x_list__(x_next_index__,:);
+                distance_temp__=sum((x_next__-x_curr__).^2);
+                if distance_temp__ < distance_min__
+                    distance_min__ = distance_temp__;
+                end
+                if distance_temp__ < search_range__
+                    search_range__ = distance_temp__;
+                end
+                x_next_index__=x_next_index__+1;
+            end
+            for x_exist_index=1:size(x_exist_list__,1)
+                x_next__=x_exist_list__(x_exist_index,:);
+                distance_temp__=sum((x_next__-x_curr__).^2);
+                if distance_temp__ < distance_min__
+                    distance_min__ = distance_temp__;
+                end
             end
         end
         distance_min__=sqrt(distance_min__);

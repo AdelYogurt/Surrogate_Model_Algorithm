@@ -4,105 +4,19 @@ close all hidden;
 
 benchmark_function=BenchmarkFunction();
 
-% variable_number=2;
-% object_function=@(x) functionGPObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-2;-2];
-% up_bou=[2;2];
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
-% variable_number=2;
-% object_function=@(x) functionBRObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-5;10];
-% up_bou=[0;15];
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
-% variable_number=2;
-% object_function=@(x) functionSCObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-2;-2];
-% up_bou=[2;2];
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
-% variable_number=2;
-% object_function=@(x) functionRSObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-1;-1];
-% up_bou=[1;1];
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
-% variable_number=2;
-% object_function=@(x) functionPKObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-3;-3];
-% up_bou=[3;3];
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
-% variable_number=6;
-% object_function=@(x) functionHNObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=zeros(variable_number,1);
-% up_bou=ones(variable_number,1);
-% nonlcon_function=[];
-% cheapcon_function=[];
-% model_function=[];
-
 variable_number=2;
-object_function=@functionG06Object;
+object_function=@(x) benchmark.single2DObject(x);
+object_function_LF=@(x) benchmark.single2DObjectLow(x);
 A=[];
 B=[];
 Aeq=[];
 Beq=[];
-low_bou=[13;0];
-up_bou=[100;100];
+low_bou=[-5,-5];
+up_bou=[5,5];
+nonlcon_function=[];
 cheapcon_function=[];
-nonlcon_function=@functionG06Nonlcon;
-model_function=[];
 
-% variable_number=4;
-% object_function=@(x) functionPVD4Object(x);
-% object_function_low=@(x) functionPVD4ObjectLow(x);
-% A=[-1,0,0.0193,0;
-%     0,-1,0.00954,0;];
-% B=[0;0];
-% Aeq=[];
-% Beq=[];
-% low_bou=[0;0;0;0];
-% up_bou=[1;1;50;240];
-% nonlcon_function=@(x) functionPVD4Nonlcon(x);
-% cheapcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq);
-% model_function=[];
-
-data_library_name='optimal_SM_MK_CMF_result.txt';
+data_library_name='optimal_data_library.txt';
 delete(data_library_name);
 delete('result_total.txt');
 [x_best,fval_best,NFE,output]=optimalSurrogateMKCMF...
@@ -122,48 +36,6 @@ scatter3(x_list(:,1),x_list(:,2),fval_list);
 xlabel('X');
 ylabel('Y');
 zlabel('Z');
-
-function [con,coneq]=cheapconFunction(x,A,B,Aeq,Beq,cheapcon_function)
-% convert A, B, Aeq, Beq to total cheapcon function
-%
-if nargin < 6
-    cheapcon_function=[];
-    if nargin < 5
-        Beq=[];
-        if nargin < 4
-            Aeq=[];
-            if nargin < 3
-                B=[];
-                if nargin < 2
-                    A=[];
-                end
-            end
-        end
-    end
-end
-x=x(:);
-con=[];
-coneq=[];
-if ~isempty(A)
-    if isempty(B)
-        con=[con;A*x];
-    else
-        con=[con;A*x-B];
-    end
-end
-if ~isempty(Aeq)
-    if isempty(Beq)
-        coneq=[coneq;Aeq*x];
-    else
-        coneq=[coneq;Aeq*x-Beq];
-    end
-end
-if ~isempty(cheapcon_function)
-    [lincon,linconeq]=cheapcon_function(x);
-    con=[con;lincon];
-    coneq=[coneq;linconeq];
-end
-end
 
 function [x_best,fval_best,NFE,output]=optimalSurrogateMKCMF...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
@@ -225,7 +97,7 @@ m=2; % clustering parameter
 filter_torlance=1e-3;
 protect_range=1e-4;
 
-data_library_name='optimal_SM_MK_CMF_result';
+data_library_name='optimal_data_library';
 file_result = fopen('result_total.txt','a');
 fprintf(file_result,'%s\n',datetime);
 fclose(file_result);
@@ -826,6 +698,7 @@ else
 end
 end
 
+%% FCM
 function FC_model=classifyFuzzyClusteringFeatureSpace...
     (X,classify_number,low_bou,up_bou,m,kernal_function)
 % get fuzzy cluster model with feature space
@@ -939,471 +812,510 @@ FC_model.fval_loss_list=fval_loss_list;
     end
 end
 
-function CGPMF_model=classifyGaussProcessMultiFidelity...
-    (X_L,Y_L,X_H,Y_H,low_bou,up_bou)
+%% multi-fidelity gaussian process classifier
+function [predict_function,CGPMF_model]=classifyGaussProcessMultiFidelity...
+    (XHF,ClassHF,XLF,ClassLF,low_bou,up_bou)
 % generate gauss classifier model
-% X is x_number x variable_number matirx,Y is x_number x 1 matrix
-% low_bou, up_bou is variable_number x 1 matrix
-% support multi fidelity
+% version 6,this version is assembly of gpml-3.6 EP method
+% X, XHF, XLF is x_number x variable_number matirx
+% Class, ClassH, ClassLF is x_number x 1 matrix
+% low_bou, up_bou is 1 x variable_number matrix
 %
-if nargin < 4
-    up_bou=[];
-    if nargin < 3
-        low_bou=[];
-    end
+% abbreviation:
+% pred: predicted,nomlz: normalization,num: number
+% var: variance
+%
+X={XHF,XLF};
+Class={ClassHF,ClassLF};
+if nargin < 4 || isempty(up_bou)
+    up_bou=max([XHF;XLF],[],1);
+end
+if nargin < 3 || isempty(low_bou)
+    low_bou=min([XHF;XLF],[],1);
 end
 
-[x_L_number,variable_number]=size(X_L);
-[x_H_number,~]=size(X_H);
-x_number=x_L_number+x_H_number;
-
-% poster function list, x_number f, variable_number len, eta
-poster_function_list=cell(x_number+2*(variable_number+1)+1,1);
-for x_index=1:x_number
-    poster_function_list{x_index}=@(x) logNormalFunction(x,0,1);
-end
-base=x_number;
-for variable_index=1:variable_number
-    poster_function_list{base+variable_index}=@(x) logGammaFunction(x,2,2);
-end
-poster_function_list{base+variable_number+1}=@(x) logHalfNormalFunction(x,5);
-base=x_number+variable_number+1;
-for variable_index=1:variable_number
-    poster_function_list{base+variable_index}=@(x) logGammaFunction(x,2,2);
-end
-poster_function_list{base+variable_number+1}=@(x) logHalfNormalFunction(x,5);
-poster_function_list{end}=@(x) logNormalFunction(x,0,10);
+[~,variable_number]=size(X);
 
 % normalization data
-if isempty(up_bou)
-    up_bou=max([X_L;X_H])';
-end
-if isempty(low_bou)
-    low_bou=min([X_L;X_H])';
-end
-X_nomlz=(X_L-low_bou')./(up_bou'-low_bou');
-X_H_nomlz=(X_H-low_bou')./(up_bou'-low_bou');
+X_nomlz={(XHF-low_bou)./(up_bou-low_bou),...
+    (XLF-low_bou)./(up_bou-low_bou)};
 
-% total list
-X=[X_L;X_H];
-X_nomlz=[X_nomlz;X_H_nomlz];
-Y=[Y_L;Y_H];
+object_function=@(x) objectFunctionGPC(x,{@infEP},{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
+x=zeros(1,2*variable_number+2);
+low_bou_hyp=log([ones(1,2*variable_number+2)*0.1]);
+up_bou_hyp=log([ones(1,2*variable_number+2)*10]);
+% up_bou_hyp(end)=0;
+x=fmincon(object_function,x,[],[],[],[],low_bou_hyp,up_bou_hyp,[],...
+    optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,'MaxFunctionEvaluations',10));
 
-% initializate square of X inner distance x__x, x__x_h, x_h__x_h sq total
-X_dis_sq=zeros(x_number,x_number,variable_number);
-for index_i=1:x_L_number
-    % x__x
-    for index_j=1:index_i-1
-        X_dis_sq(index_i,index_j,:)=X_dis_sq(index_j,index_i,:);
-    end
-    X_dis_sq(index_i,index_i,:)=0;
-    for index_j=index_i+1:x_L_number
-        X_dis_sq(index_i,index_j,:)=(X_nomlz(index_i,:)-X_nomlz(index_j,:)).^2;
-    end
-    % x__x_h
-    for index_j=x_L_number+1:x_number
-        X_dis_sq(index_i,index_j,:)=(X_nomlz(index_i,:)-X_nomlz(index_j,:)).^2;
-    end
-end
-for index_i=x_L_number+1:x_number
-    % x_h__x and x_h__x_h
-    for index_j=1:index_i-1
-        X_dis_sq(index_i,index_j,:)=X_dis_sq(index_j,index_i,:);
-    end
-    X_dis_sq(index_i,index_i,:)=0;
-    % x_h__x_h
-    for index_j=x_L_number+1:x_number
-        X_dis_sq(index_i,index_j,:)=(X_nomlz(index_i,:)-X_nomlz(index_j,:)).^2;
-    end
-end
-
-% likelihood function
-log_likelihood_function=@(hyperparameter) logLikelihoodFunction...
-    (hyperparameter,X_dis_sq,Y,...
-            x_L_number,x_H_number,x_number,variable_number);
-% posterior function
-log_posterior_function=@(hyperparameter) logPosteriorFunction...
-    (log_likelihood_function,hyperparameter,poster_function_list);
-
-% get hyperparameter
-hyperparameter_initial=ones(x_number+2*(variable_number+1)+1,1);
-
-% [fval,gradient]=log_likelihood_function(hyperparameter_initial)
-% [gradient_differ,~]=differ...
-%     (log_likelihood_function,hyperparameter_initial,fval)
-
-low_bou_hyper=-realmax*ones(x_number+2*(variable_number+1)+1,1);
-low_bou_hyper(x_number+(variable_number+1))=1e-6;
-low_bou_hyper(x_number+2*(variable_number+1))=1e-6;
-up_bou_hyper=realmax*ones(x_number+2*(variable_number+1)+1,1);
-
-% optimal method
-object_function=@(x) objectFunction(log_posterior_function,x);
-fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','SpecifyObjectiveGradient',true);
-[hyperparameter,fval,~,~]=fmincon...
-    (object_function,hyperparameter_initial,[],[],[],[],low_bou_hyper,up_bou_hyper,[],fmincon_option);
-
-% % sampling method to get hyperparamter
-% sample_number=400;
-% iteration_adapt=400;
-% accept_probability=0.65;
-% [sample_list,output]=samplerNUTS...
-%     (log_posterior_function,hyperparameter_initial,sample_number,iteration_adapt,accept_probability,...
-%     low_bou_hyper,up_bou_hyper);
-% hyperparameter=(sum(sample_list(:,:),1)/(sample_number))';
-% count_number=100;
-% [~,~,~,~]=drawSample...
-%     (sample_list,count_number);
-% CGPMF_model.sample_list=sample_list;
-
-disp(['hyperparameter: ']);disp(hyperparameter(x_number+1:end));
-
-v=hyperparameter(1:x_number);
-base=x_number;
-len_L=hyperparameter((base+1):(base+variable_number));
-eta_L=hyperparameter(base+variable_number+1);
-base=x_number+variable_number+1;
-len_H=hyperparameter((base+1):(base+variable_number));
-eta_H=hyperparameter(base+variable_number+1);
-rou=hyperparameter(end);
-% obtain convariance and inv_covariance_X
-[covariance_X,inv_covariance_X,...
-    ~,~,~,...
-    ~,~]=getCovariance...
-    (len_L,eta_L,len_H,eta_H,rou,...
-    X_dis_sq,x_L_number,x_H_number,x_number,variable_number);
-fvpre=chol(covariance_X,'lower')*v;
-
-% generate predict function
-CGMFM_predict_function=@(x) classifyGaussPredictor...
-    (x,X_nomlz,fvpre,len_L,eta_L,len_H,eta_H,rou,inv_covariance_X,...
-    low_bou,up_bou,x_L_number,x_H_number,x_number,variable_number);
+hyp.mean=x(1);
+hyp.cov=x(2:end);
+hyp.lik=[];
+post=infEP(hyp,{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
+predict_function=@(x_pred) classifyGaussPredictor...
+    (x_pred,hyp,{@meanConst},{@calCovMF},{@likErf},post,X_nomlz,low_bou,up_bou);
 
 % output model
-CGPMF_model.X=X_L;
-CGPMF_model.Y=Y_L;
-CGPMF_model.X_H=X_H;
-CGPMF_model.Y_H=Y_H;
-CGPMF_model.X_total=X;
-CGPMF_model.Y_total=Y;
+CGPMF_model.X=X;
+CGPMF_model.Class=Class;
 CGPMF_model.X_nomlz=X_nomlz;
-CGPMF_model.X_H_nomlz=X_H_nomlz;
 CGPMF_model.low_bou=low_bou;
 CGPMF_model.up_bou=up_bou;
-CGPMF_model.inv_covariance_X=inv_covariance_X;
-CGPMF_model.CGMFM_predict_function=CGMFM_predict_function;
+CGPMF_model.predict_function=predict_function;
+CGPMF_model.hyp=hyp;
+CGPMF_model.post=post;
 
-    function [fval,gradient]=logLikelihoodFunction...
-            (hyperparameter,X_dis_sq,Y,...
-            x_L_number,x_H_number,x_number,variable_number)
-        % support vector machine maximum object function
-        % hyperparameter is x_number v,
-        % variable_number len_L, eta_L, variable_number len_H, eta_H rou
-        % only calculate half of matrix, due to symmetry of matrix
-        %
-        v__=hyperparameter(1:x_number);
-        base__=x_number;
-        len_L__=hyperparameter((base__+1):(base__+variable_number));
-        eta_L__=hyperparameter(base__+variable_number+1);
-        base__=x_number+variable_number+1;
-        len_H__=hyperparameter((base__+1):(base__+variable_number));
-        eta_H__=hyperparameter(base__+variable_number+1);
-        rou__=hyperparameter(end);
-        
-        [covariance_X__,inv_covariance_X__,...
-            exp_dis__,rou_exp_dis__,eta_rou_exp_dis__,...
-            exp_H_dis__,eta_H_exp_H_dis__]=getCovariance...
-            (len_L__,eta_L__,len_H__,eta_H__,rou__,...
-            X_dis_sq,x_L_number,x_H_number,x_number,variable_number);
-        
-        L=chol(covariance_X__,'lower');
-        inv_L=inv(L);
-        fvpre__=L*v__;
-        exp__fvpre=exp(-fvpre__);
-        p__=(1-2e-6)./(1+exp__fvpre)+1e-6;
-        log_p__=log(p__);
-        log_1_p__=log(1-p__);
-        
-        fval=sum(Y.*log_p__+(1-Y).*log_1_p__);
-        
-        % get gradient
-        dfval_dfvpre=(Y./p__-(1-Y)./(1-p__)).*exp__fvpre./((1+exp__fvpre).^2);
-        gradient=zeros(x_number+2*(variable_number+1)+1,1);
-        % fvpre
-        for x_index__=1:x_number
-            gradient(x_index__)=sum(dfval_dfvpre.*L(:,x_index__));
-        end
-        base__=x_number;
-        % len_L
-        for variable_index__=1:variable_number
-            temp=len_L__(variable_index__)^3;
-            % cov_gradient is dcov_dlen
-            cov_gradient=X_dis_sq(:,:,variable_index__).*eta_rou_exp_dis__/temp;
-            dcfp_dlen_L=(L*(semidiagonal(x_number).*(inv_L*cov_gradient*inv_L')))*v__;
-            gradient(base__+variable_index__)=sum(dfval_dfvpre.*dcfp_dlen_L);
-        end
-        % eta_L
-        % cov_gradient=rou_exp_dis__ is dcov_deta
-        dcfp_deta_L=(L*(semidiagonal(x_number).*(inv_L*rou_exp_dis__*inv_L')))*v__;
-        gradient(base__+variable_number+1)=sum(dfval_dfvpre.*dcfp_deta_L);
-        
-        % rou
-        exp_dis__(1:x_L_number,1:x_L_number)=0;
-        cov_gradient=exp_dis__;
-        cov_gradient(1:x_L_number,x_L_number+1:x_number)=eta_L__*...
-            cov_gradient(1:x_L_number,x_L_number+1:x_number);
-        cov_gradient(x_L_number+1:x_number,1:x_L_number)=...
-            cov_gradient(1:x_L_number,x_L_number+1:x_number)';
-        cov_gradient(x_L_number+1:x_number,x_L_number+1:x_number)=2*rou__*eta_L__*...
-            cov_gradient(x_L_number+1:x_number,x_L_number+1:x_number);
-        dcfp_drou=(L*(semidiagonal(x_number).*(inv_L*cov_gradient*inv_L')))*v__;
-        gradient(end)=sum(dfval_dfvpre.*dcfp_drou);
-        
-        % len_H
-        base__=x_number+variable_number+1;
-        X_dis_sq(1:x_L_number,1:x_L_number)=0;
-        X_dis_sq(1:x_L_number,x_L_number+1:x_number)=0;
-        X_dis_sq(x_L_number+1:x_number,1:x_L_number)=0;
-        
-        for variable_index__=1:variable_number
-            temp=len_H__(variable_index__)^3;
-            % cov_gradient is dcov_dlen
-            cov_gradient=X_dis_sq(:,:,variable_index__).*eta_H_exp_H_dis__/temp;
-            dcfp_dlen_H=(L*(semidiagonal(x_number).*(inv_L*cov_gradient*inv_L')))*v__;
-            gradient(base__+variable_index__)=sum(dfval_dfvpre.*dcfp_dlen_H);
-        end
-        % eta_H
-        % cov_gradient=exp_H_dis__ is dcov_deta
-        dcfp_deta_H=(L*(semidiagonal(x_number).*(inv_L*exp_H_dis__*inv_L')))*v__;
-        gradient(base__+variable_number+1)=sum(dfval_dfvpre.*dcfp_deta_H);
-        
-        function matrix=semidiagonal(n)
-            matrix=ones(n);
-            for rank_index=1:n
-                matrix(rank_index,rank_index)=0.5;
-                for colume_index=rank_index+1:n
-                    matrix(rank_index,colume_index)=0;
-                end
-            end
-        end
-    end
-    function [fval,gradient]=logPosteriorFunction...
-            (log_likelihood_function,hyperparameter,poster_function_list)
-        % add poster disturbution
-        %
-        [fval,gradient]=log_likelihood_function(hyperparameter);
-        hyper_number=size(hyperparameter,1);
-        for hyper_index=1:hyper_number
-            poster_function=poster_function_list{hyper_index};
-            [fval_hyper,gradient_hyper]=poster_function(hyperparameter(hyper_index));
-            fval=fval+fval_hyper;
-            gradient(hyper_index)=gradient(hyper_index)+gradient_hyper;
-        end
-    end
-    function [covariance_X__,inv_covariance_X__,...
-            exp_dis__,rou_exp_dis__,eta_rou_exp_dis__,...
-            exp_H_dis__,eta_H_exp_H_dis__]=getCovariance...
-            (len_L__,eta_L__,len_H__,eta_H__,rou__,...
-            X_dis_sq,x_L_number,x_H_number,x_number,variable_number)
-        % obtain covariance of x
-        rou_sq__=rou__*rou__;
-        
-        % exp of x__x, x__x_h, x_h__x_h with theta
-        exp_dis__=zeros(x_number);
-        for rank_index__=1:x_number
-            % symmetry
-            for colume_index__=1:rank_index__-1
-                exp_dis__(rank_index__,colume_index__)=exp_dis__(colume_index__,rank_index__);
-            end
-            
-            % diagonal
-            exp_dis__(rank_index__,rank_index__)=1+1e-3;
-            
-            % initial
-            for colume_index__=rank_index__+1:x_number
-                temp=0;
-                for variable_index__=1:variable_number
-                    temp=temp+X_dis_sq(rank_index__,colume_index__,variable_index__)/...
-                        (2*len_L__(variable_index__)^2);
-                end
-                exp_dis__(rank_index__,colume_index__)=exp(-temp);
-            end
-        end
-        
-        % only exp of x_h__x_h with theta_H
-        exp_H_dis__=zeros(x_number);
-        for rank_index__=x_L_number+1:x_number
-            % symmetry
-            for colume_index__=1:rank_index__-1
-                exp_H_dis__(rank_index__,colume_index__)=exp_H_dis__(colume_index__,rank_index__);
-            end
-            
-            % diagonal
-            exp_H_dis__(rank_index__,rank_index__)=1+1e-3;
-            
-            % initial
-            for colume_index__=rank_index__+1:x_number
-                temp=0;
-                for variable_index__=1:variable_number
-                    temp=temp+X_dis_sq(rank_index__,colume_index__,variable_index__)/...
-                        (2*len_H__(variable_index__)^2);
-                end
-                exp_H_dis__(rank_index__,colume_index__)=exp(-temp);
-            end
-        end
-        
-        % add rou
-        rou_exp_dis__=exp_dis__;
-        for rank_index__=x_L_number+1:x_number
-            % x__x_h and symmetry
-            for colume_index__=1:x_L_number
-                rou_exp_dis__(rank_index__,colume_index__)=rou_exp_dis__(rank_index__,colume_index__)*rou__;
-                rou_exp_dis__(colume_index__,rank_index__)=rou_exp_dis__(rank_index__,colume_index__);
-            end
-            
-            % symmetry
-            for colume_index__=x_L_number+1:rank_index__-1
-                rou_exp_dis__(rank_index__,colume_index__)=rou_exp_dis__(colume_index__,rank_index__);
-            end
-            % x_h__x_h
-            for colume_index__=rank_index__:x_number
-                rou_exp_dis__(rank_index__,colume_index__)=rou_exp_dis__(rank_index__,colume_index__)*rou_sq__;
-            end
-        end
-        
-        eta_rou_exp_dis__=rou_exp_dis__*eta_L__;
-        eta_H_exp_H_dis__=exp_H_dis__*eta_H__;
-        
-        % convariance of total data
-        covariance_X__=eta_rou_exp_dis__+eta_H_exp_H_dis__;
-        
-        inv_covariance_X__=inv(covariance_X__);
-    end
-    function [fval,gradient]=objectFunction(initial_function,x)
-        [fval,gradient]=initial_function(x);
-        fval=-fval;
-        gradient=-gradient;
-    end
-    function [class,mu_pre,var_pre]=classifyGaussPredictor...
-            (x,X_nomlz,fvpre,len_L,eta_L,len_H,eta_H,rou,inv_covariance_X,...
-            low_bou,up_bou,x_L_number,x_H_number,x_number,variable_number)
-        % predict value of x
-        % x input is colume vector
-        % X_nomlz include X_L and X_H
-        %
-        x_nomlz=(x-low_bou)./(up_bou-low_bou);
-        x_cov__=zeros(x_number,1);
-        % cov of x and X_L
-        for x_index__=1:x_L_number
-            temp=sum((x_nomlz'-X_nomlz(x_index__,:)).^2./(len_L').^2/2);
-            x_cov__(x_index__)=rou*eta_L*exp(-temp);
-        end
-        % cov of x and X_H
-        for x_index__=x_L_number+1:x_number
-            temp=sum((x_nomlz'-X_nomlz(x_index__,:)).^2./(len_L').^2/2);
-            temp_H=sum((x_nomlz'-X_nomlz(x_index__,:)).^2./(len_H').^2/2);
-            x_cov__(x_index__)=rou*rou*eta_L*exp(-temp)+eta_H*exp(-temp_H);
-        end
-        
-        % get mu_pre
-        mu_pre=x_cov__'*inv_covariance_X*fvpre;
-        if 1/(1+exp(-mu_pre)) > 0.5
-            class=1;
-        else
-            class=0;
-        end
-        var_pre=rou*rou*eta_L+eta_H-x_cov__'*inv_covariance_X*x_cov__;
-    end
+    function [fval,gradient]=objectFunctionGPC(x,inf,mean,cov,lik,X,Y)
+        hyp_iter.mean=x(1);
+        hyp_iter.cov=x(2:end);
+        hyp_iter.lik=[];
 
+        if nargout < 2
+            [~,nlZ] = feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
+            fval=nlZ;
+        elseif nargout < 3
+            [~,nlZ,dnlZ]=feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
+            fval=nlZ;
+            gradient=[dnlZ.mean,dnlZ.cov];
+        end
+    end
+    function [class,possibility,miu_pre,var_pre]=classifyGaussPredictor...
+            (x_pred,hyp,mean,cov,lik,post,X,low_bou,up_bou)
+        % predict function
+        %
+        x_pred_nomlz=(x_pred-low_bou)./(up_bou-low_bou);
+        pred_num=size(x_pred_nomlz,1);
+        ys=ones(pred_num,1);
+
+        alpha = post.alpha; L = post.L; sW = post.sW;
+        %verify whether L contains valid Cholesky decomposition or something different
+        Lchol = isnumeric(L) && all(all(tril(L,-1)==0)&diag(L)'>0&isreal(diag(L))');
+        ns = size(x_pred_nomlz,1);                                       % number of data points
+        nperbatch = 1000;                       % number of data points per mini batch
+        nact = 0;                       % number of already processed test data points
+        ymu = zeros(ns,1); ys2 = ymu; miu_pre = ymu; var_pre = ymu; possibility = ymu;   % allocate mem
+        while nact<ns               % process minibatches of test cases to save memory
+            id = (nact+1):min(nact+nperbatch,ns);               % data points to process
+            kss = feval(cov{:},hyp.cov,x_pred_nomlz(id,:),'diag');              % self-variance
+            Ks = feval(cov{:},hyp.cov,X,x_pred_nomlz(id,:));        % avoid computation
+            ms = feval(mean{:},hyp.mean,x_pred_nomlz(id,:));
+            N = size(alpha,2);  % number of alphas (usually 1; more in case of sampling)
+            Fmu = repmat(ms,1,N) + Ks'*full(alpha);        % conditional mean fs|f
+            miu_pre(id) = sum(Fmu,2)/N;                                   % predictive means
+            if Lchol    % L contains chol decomp => use Cholesky parameters (alpha,sW,L)
+                V  = L'\(repmat(sW,1,length(id)).*Ks);
+                var_pre(id) = kss - sum(V.*V,1)';                       % predictive variances
+            else                % L is not triangular => use alternative parametrisation
+                if isnumeric(L),LKs = L*Ks; else LKs = L(Ks); end    % matrix or callback
+                var_pre(id) = kss + sum(Ks.*LKs,1)';                    % predictive variances
+            end
+            var_pre(id) = max(var_pre(id),0);   % remove numerical noise i.e. negative variances
+            Fs2 = repmat(var_pre(id),1,N);     % we have multiple values in case of sampling
+            if nargin<9
+                [Lp,Ymu,Ys2] = feval(lik{:},hyp.lik,[],Fmu(:),Fs2(:));
+            else
+                Ys = repmat(ys(id),1,N);
+                [Lp,Ymu,Ys2] = feval(lik{:},hyp.lik,Ys(:),Fmu(:),Fs2(:));
+            end
+            possibility(id)  = sum(reshape(Lp,[],N),2)/N;    % log probability; sample averaging
+            ymu(id) = sum(reshape(Ymu,[],N),2)/N;          % predictive mean ys|y and ..
+            ys2(id) = sum(reshape(Ys2,[],N),2)/N;                          % .. variance
+            nact = id(end);          % set counter to index of last processed data point
+        end
+
+        possibility=exp(possibility);
+        class=ones(pred_num,1);
+        index_list=find(possibility < 0.5);
+        class(index_list)=-1;
+    end
 end
-function classifyGaussProcessMultiFidelityVisualization...
-    (CGPMF_model,low_bou,up_bou,figure_handle)
-% Visualization SVM_model
+
+function [K,dK_dvar]=calCovMF(cov,X,Z)
+% obtain covariance of x
 %
-if nargin < 1
-    error('classifySupportVectorMachineVisualization: not enough input');
+if iscell(X)
+    variable_number=size(X{1},2);
+else
+    variable_number=size(X,2);
 end
-X=CGPMF_model.X_H;
-Y=CGPMF_model.Y_H;
 
-CGMFM_predict_function=CGPMF_model.CGMFM_predict_function;
+lenH=exp(cov(1:variable_number));
+lenL=exp(cov(variable_number+(1:variable_number)));
+rho=exp(cov(end));
 
-if nargin < 3
-    up_bou=max(X)';
-    if nargin < 2
-        low_bou=min(X)';
+if nargin > 2 && nargout < 2 && ~isempty(Z)
+    if strcmp(Z,'diag')
+        K=rho*rho*1+1;
+        return
     end
 end
 
-if nargin < 4
-    figure_handle=figure(200);
-end
-axes_handle=figure_handle.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(figure_handle);
-end
+XHF=X{1};
+XLF=X{2};
+[xH_num,variable_number]=size(XHF);
+[xL_num,~]=size(XLF);
+x_num=xH_num+xL_num;
+X=[XHF;XLF];
 
-% check dimension
-[~,variable_number]=size(X);
-if variable_number ~= 2
-    error('classifySupportVectorMachineVisualization: dimension do not equal 2');
-end
+% predict
+if nargin > 2 && nargout < 2 && ~isempty(Z)
+    [z_num,variable_number]=size(Z);
+    % initializate square of X inner distance
+    sq_dis=zeros(x_num,z_num,variable_number);
+    for len_index=1:variable_number
+        sq_dis(:,:,len_index)=(X(:,len_index)-Z(:,len_index)').^2;
+    end
 
-index=find(Y>0);
-X_positive=X(index,:);
-index=find(Y<0);
-X_negative=X(index,:);
+    % exp of x__x with H
+    exp_disH=zeros(xH_num,z_num);
+    for len_index=1:variable_number
+        exp_disH=exp_disH+...
+            sq_dis(1:xH_num,:,len_index)/2/lenH(len_index)^2;
+    end
+    exp_disH=exp(-exp_disH);
 
-% draw zero value line
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-[X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-class=zeros(grid_number+1);
-fval=zeros(grid_number+1);
-for x_index=1:grid_number+1
-    for y_index=1:grid_number+1
-        predict_x=([x_index;y_index]-1).*d_bou+low_bou;
-        [class(y_index,x_index),fval(y_index,x_index)]=...
-            CGMFM_predict_function(predict_x);
+    % exp of x__x with L
+    exp_disL=zeros(x_num,z_num);
+    for len_index=1:variable_number
+        exp_disL=exp_disL+...
+            sq_dis(1:x_num,:,len_index)/2/lenL(len_index)^2;
+    end
+    exp_disL=exp(-exp_disL);
+
+    K=exp_disL;
+    K(1:xH_num,:)=rho*rho*K(1:xH_num,:)+exp_disH;
+    K(xH_num+1:end,:)=rho*K(xH_num+1:end,:);
+else
+    % initializate square of X inner distance
+    sq_dis=zeros(x_num,x_num,variable_number);
+    for len_index=1:variable_number
+        sq_dis(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2;
+    end
+
+    % exp of x__x with H
+    exp_disH=zeros(xH_num);
+    for len_index=1:variable_number
+        exp_disH=exp_disH+...
+            sq_dis(1:xH_num,1:xH_num,len_index)/2/lenH(len_index)^2;
+    end
+    exp_disH=exp(-exp_disH);
+    KH=exp_disH;
+
+    % exp of x__x with L
+    exp_disL=zeros(x_num);
+    for len_index=1:variable_number
+        exp_disL=exp_disL+...
+            sq_dis(1:end,1:end,len_index)/2/lenL(len_index)^2;
+    end
+    exp_disL=exp(-exp_disL);
+    % times rho: HH to rho2, HL to rho, LL to 1
+    rho_exp_disL=exp_disL;
+    rho_exp_disL(1:xH_num,1:xH_num)=...
+        (rho*rho)*exp_disL(1:xH_num,1:xH_num);
+    rho_exp_disL(1:xH_num,(xH_num+1):end)=...
+        rho*exp_disL(1:xH_num,(xH_num+1):end);
+    rho_exp_disL((xH_num+1):end,1:xH_num)=...
+        rho_exp_disL(1:xH_num,(xH_num+1):end)';
+
+    KL=rho_exp_disL;
+    K=KL;
+    K(1:xH_num,1:xH_num)=K(1:xH_num,1:xH_num)+KH;
+
+    if nargout >= 2
+        dK_dvar=cell(1,2*variable_number+1);
+
+        % len H
+        for len_index=1:variable_number
+            dK_dlenH=zeros(x_num);
+            dK_dlenH(1:xH_num,1:xH_num)=KH.*...
+                sq_dis(1:xH_num,1:xH_num,len_index)/lenH(len_index)^2;
+            dK_dvar{len_index}=dK_dlenH;
+        end
+
+        % len L
+        for len_index=1:variable_number
+            dK_dlenL=KL.*sq_dis(:,:,len_index)/lenL(len_index)^2;
+            dK_dvar{(variable_number)+len_index}=dK_dlenL;
+        end
+
+        % rho
+        dK_drho=zeros(x_num);
+        dK_drho(1:xH_num,1:xH_num)=...
+            2*rho*rho*exp_disL(1:xH_num,1:xH_num);
+        dK_drho((xH_num+1):end,1:end)=...
+            rho*exp_disL((xH_num+1):end,1:end);
+        dK_drho(1:end,(xH_num+1):end)=...
+            dK_drho((xH_num+1):end,1:end)';
+        dK_dvar{end}=dK_drho;
     end
 end
-contour(axes_handle,X_draw,Y_draw,class);
 
-% draw point
-line(axes_handle,X_positive(:,1),X_positive(:,2),'LineStyle','none','Marker','o','Color','b');
-line(axes_handle,X_negative(:,1),X_negative(:,2),'LineStyle','none','Marker','o','Color','r');
-
-% figure(2)
-% surf(X,Y,fval_sum);
 end
 
-function [fval,gradient]=logHalfNormalFunction(x,sigma)
-if x < 0
-    fval=-realmax;
-    gradient=1e6;
+function [post,nlZ,dnlZ] = infEP(hyp,mean,cov,lik,xF,yF)
+% Expectation Propagation approximation to the posterior Gaussian Process.
+% The function takes a specified covariance function (see covFunctions.m) and
+% likelihood function (see likFunctions.m),and is designed to be used with
+% gp.m. See also infMethods.m. In the EP algorithm,the sites are
+% updated in random order,for better performance when cases are ordered
+% according to the targets.
+%
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2013-09-13.
+%
+% See also INFMETHODS.M.
+%
+persistent last_ttau last_tnu              % keep tilde parameters between calls
+tol = 1e-4; max_sweep = 10; min_sweep = 2;     % tolerance to stop EP iterations
+
+inf = 'infEP';
+if isnumeric(cov), K = cov;                    % use provided covariance matrix
+else K = feval(cov{:}, hyp.cov, xF); end       % evaluate the covariance matrix
+
+x=[xF{1};xF{2}];
+y=[yF{1};yF{2}];
+n = size(x,1);
+
+if isnumeric(mean),m = mean;                         % use provided mean vector
+else m = feval(mean{:},hyp.mean,x); end             % evaluate the mean vector
+
+% A note on naming: variables are given short but descriptive names in
+% accordance with Rasmussen & Williams "GPs for Machine Learning" (2006): mu
+% and s2 are mean and variance,nu and tau are natural parameters. A leading t
+% means tilde,a subscript _ni means "not i" (for cavity parameters),or _n
+% for a vector of cavity parameters. N(f|mu,Sigma) is the posterior.
+
+% marginal likelihood for ttau = tnu = zeros(n,1); equals n*log(2) for likCum*
+nlZ0 = -sum(feval(lik{:},hyp.lik,y,m,diag(K),inf));
+if any(size(last_ttau) ~= [n 1])      % find starting point for tilde parameters
+    ttau = zeros(n,1); tnu  = zeros(n,1);        % init to zero if no better guess
+    Sigma = K;                     % initialize Sigma and mu,the parameters of ..
+    mu = m; nlZ = nlZ0;                  % .. the Gaussian posterior approximation
 else
-    sigma_sq=sigma*sigma;
-    fval=-0.5*log(pi/2)-log(sigma)-x*x/2/sigma_sq;
-    gradient=-x/sigma_sq;
+    ttau = last_ttau; tnu  = last_tnu;   % try the tilde values from previous call
+    [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf);
+    if nlZ > nlZ0                                           % if zero is better ..
+        ttau = zeros(n,1); tnu  = zeros(n,1);       % .. then init with zero instead
+        Sigma = K;                   % initialize Sigma and mu,the parameters of ..
+        mu = m; nlZ = nlZ0;                % .. the Gaussian posterior approximation
+    end
 end
+
+nlZ_old = Inf; sweep = 0;               % converged,max. sweeps or min. sweeps?
+while (abs(nlZ-nlZ_old) > tol && sweep < max_sweep) || sweep<min_sweep
+    nlZ_old = nlZ; sweep = sweep+1;
+    for i = randperm(n)       % iterate EP updates (in random order) over examples
+        tau_ni = 1/Sigma(i,i)-ttau(i);      %  first find the cavity distribution ..
+        nu_ni = mu(i)/Sigma(i,i)-tnu(i);                % .. params tau_ni and nu_ni
+
+if ~isreal(tau_ni)
+disp('?');
 end
-function [fval,gradient]=logNormalFunction(x,mu,sigma)
-sigma_sq=sigma*sigma;
-x_mu=x-mu;
-fval=-0.5*log(2*pi)-log(sigma)-x_mu*x_mu/2/sigma_sq;
-gradient=-x_mu/sigma_sq;
+
+        % compute the desired derivatives of the indivdual log partition function
+        [lZ,dlZ,d2lZ] = feval(lik{:},hyp.lik,y(i),nu_ni/tau_ni,1/tau_ni,inf);
+        ttau_old = ttau(i); tnu_old = tnu(i);  % find the new tilde params,keep old
+        ttau(i) = -d2lZ /(1+d2lZ/tau_ni);
+        ttau(i) = max(ttau(i),0); % enforce positivity i.e. lower bound ttau by zero
+        tnu(i)  = ( dlZ - nu_ni/tau_ni*d2lZ )/(1+d2lZ/tau_ni);
+
+        dtt = ttau(i)-ttau_old; dtn = tnu(i)-tnu_old;      % rank-1 update Sigma ..
+        si = Sigma(:,i); ci = dtt/(1+dtt*si(i));
+        Sigma = Sigma - ci*si*si';                         % takes 70% of total time
+        mu = mu - (ci*(mu(i)+si(i)*dtn)-dtn)*si;               % .. and recompute mu
+    end
+    % recompute since repeated rank-one updates can destroy numerical precision
+    [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf);
 end
-function [fval,gradient]=logGammaFunction(x,alpha,beta)
-if x < 0
-    fval=-realmax;
-    gradient=1e6;
-else
-    fval=-log(beta^alpha)-log(gamma(alpha))+(alpha-1)*log(x)-x/beta;
-    gradient=(alpha-1)/x-1/beta;
+
+if sweep == max_sweep && abs(nlZ-nlZ_old) > tol
+    error('maximum number of sweeps exceeded in function infEP')
+end
+
+last_ttau = ttau; last_tnu = tnu;                       % remember for next call
+post.alpha = alpha; post.sW = sqrt(ttau); post.L = L;  % return posterior params
+
+if nargout>2                                           % do we want derivatives?
+    dnlZ = hyp;                                   % allocate space for derivatives
+    tau_n = 1./diag(Sigma)-ttau;             % compute the log marginal likelihood
+    nu_n  = mu./diag(Sigma)-tnu;                    % vectors of cavity parameters
+    sW = sqrt(ttau);
+    F = alpha*alpha'-repmat(sW,1,n).*(L\(L'\diag(sW)));   % covariance hypers
+    [K,dK] = feval(cov{:},hyp.cov,xF,[]);
+    for i=1:length(hyp.cov)
+        dnlZ.cov(i) = -sum(sum(F.*dK{i}))/2;
+    end
+    for i = 1:numel(hyp.lik)                                   % likelihood hypers
+        dlik = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf,i);
+        dnlZ.lik(i) = -sum(dlik);
+    end
+    [junk,dlZ] = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf);% mean hyps
+    for i = 1:numel(hyp.mean)
+        dm = feval(mean{:},hyp.mean,x,i);
+        dnlZ.mean(i) = -dlZ'*dm;
+    end
 end
 end
 
-function [MK_model_fval,MK_model_con,MK_model_coneq,output]=getMKModel...
+function [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf)
+% function to compute the parameters of the Gaussian approximation,Sigma and
+% mu,and the negative log marginal likelihood,nlZ,from the current site
+% parameters,ttau and tnu. Also returns L (useful for predictions).
+%
+n = length(y);                                      % number of training cases
+sW = sqrt(ttau);                                        % compute Sigma and mu
+L = chol(eye(n)+sW*sW'.*K);                            % L'*L=B=eye(n)+sW*K*sW
+V = L'\(repmat(sW,1,n).*K);
+Sigma = K - V'*V;
+alpha = tnu-sW.*(L\(L'\(sW.*(K*tnu+m))));
+mu = K*alpha+m; v = diag(Sigma);
+
+tau_n = 1./diag(Sigma)-ttau;             % compute the log marginal likelihood
+nu_n  = mu./diag(Sigma)-tnu;                    % vectors of cavity parameters
+lZ = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf);
+p = tnu-m.*ttau; q = nu_n-m.*tau_n;                        % auxiliary vectors
+nlZ = sum(log(diag(L))) - sum(lZ) - p'*Sigma*p/2 + (v'*p.^2)/2 ...
+    - q'*((ttau./tau_n.*q-2*p).*v)/2 - sum(log(1+ttau./tau_n))/2;
+
+if ~isreal(Sigma(1))
+disp('?');
+end
+end
+
+function A = meanConst(hyp,x,i)
+% Constant mean function. The mean function is parameterized as:
+%
+% m(x) = c
+%
+% The hyperparameter is:
+%
+% hyp = [ c ]
+%
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2010-08-04.
+%
+% See also MEANFUNCTIONS.M.
+%
+if nargin<2,A = '1'; return; end             % report number of hyperparameters
+if numel(hyp)~=1,error('Exactly one hyperparameter needed.'),end
+c = hyp;
+if nargin==2
+    A = c*ones(size(x,1),1);                                       % evaluate mean
+else
+    if i==1
+        A = ones(size(x,1),1);                                          % derivative
+    else
+        A = zeros(size(x,1),1);
+    end
+end
+end
+
+function [varargout] = likErf(hyp,y,mu,s2,inf)
+% likErf - Error function or cumulative Gaussian likelihood function for binary
+% classification or probit regression. The expression for the likelihood is
+%   likErf(t) = (1+erf(t/sqrt(2)))/2 = normcdf(t).
+%
+% Several modes are provided,for computing likelihoods,derivatives and moments
+% respectively,see likFunctions.m for the details. In general,care is taken
+% to avoid numerical issues when the arguments are extreme.
+%
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2014-03-19.
+%
+% See also LIKFUNCTIONS.M.
+%
+if nargin<3,varargout = {'0'}; return; end   % report number of hyperparameters
+if nargin>1,y = sign(y); y(y==0) = 1; else y = 1; end % allow only +/- 1 values
+if numel(y)==0,y = 1; end
+
+if nargin<5                              % prediction mode if inf is not present
+    y = y.*ones(size(mu));                                       % make y a vector
+    s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps,s2zero = 0; end  % s2==0 ?
+    if s2zero                                         % log probability evaluation
+        lp = logphi(y.*mu);
+    else                                                              % prediction
+        lp = likErf(hyp,y,mu,s2,'infEP');
+    end
+    p = exp(lp); ymu = {}; ys2 = {};
+    if nargout>1
+        ymu = 2*p-1;                                                % first y moment
+        if nargout>2
+            ys2 = 4*p.*(1-p);                                        % second y moment
+        end
+    end
+    varargout = {lp,ymu,ys2};
+else                                                            % inference mode
+    switch inf
+        case 'infLaplace'
+            if nargin<6                                             % no derivative mode
+                f = mu; yf = y.*f;                            % product latents and labels
+                varargout = cell(nargout,1); [varargout{:}] = logphi(yf);   % query logphi
+                if nargout>1
+                    varargout{2} = y.*varargout{2};
+                    if nargout>3,varargout{4} = y.*varargout{4}; end
+                end
+            else                                                       % derivative mode
+                varargout = {[],[],[]};                         % derivative w.r.t. hypers
+            end
+
+        case 'infEP'
+            if nargin<6                                             % no derivative mode
+                z = mu./sqrt(1+s2); dlZ = {}; d2lZ = {};
+                if numel(y)>0,z = z.*y; end
+                if nargout<=1,lZ = logphi(z);                         % log part function
+                else          [lZ,n_p] = logphi(z); end
+                if nargout>1
+                    if numel(y)==0,y=1; end
+                    dlZ = y.*n_p./sqrt(1+s2);                      % 1st derivative wrt mean
+                    if nargout>2,d2lZ = -n_p.*(z+n_p)./(1+s2); end         % 2nd derivative
+                end
+                varargout = {lZ,dlZ,d2lZ};
+            else                                                       % derivative mode
+                varargout = {[]};                                     % deriv. wrt hyp.lik
+            end
+    end
+end
+end
+
+function [lp,dlp,d2lp,d3lp] = logphi(z)
+% Safe computation of logphi(z) = log(normcdf(z)) and its derivatives
+%                    dlogphi(z) = normpdf(x)/normcdf(x).
+% The function is based on index 5725 in Hart et al. and gsl_sf_log_erfc_e.
+%
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2013-11-13.
+%
+z = real(z);                                 % support for real arguments only
+lp = zeros(size(z));                                         % allocate memory
+id1 = z.*z<0.0492;                                 % first case: close to zero
+lp0 = -z(id1)/sqrt(2*pi);
+c = [ 0.00048204; -0.00142906; 0.0013200243174; 0.0009461589032;
+    -0.0045563339802; 0.00556964649138; 0.00125993961762116;
+    -0.01621575378835404; 0.02629651521057465; -0.001829764677455021;
+    2*(1-pi/3); (4-pi)/3; 1; 1];
+f = 0; for i=1:14,f = lp0.*(c(i)+f); end,lp(id1) = -2*f-log(2);
+id2 = z<-11.3137;                                    % second case: very small
+r = [ 1.2753666447299659525; 5.019049726784267463450;
+    6.1602098531096305441; 7.409740605964741794425;
+    2.9788656263939928886 ];
+q = [ 2.260528520767326969592;  9.3960340162350541504;
+    12.048951927855129036034; 17.081440747466004316;
+    9.608965327192787870698;  3.3690752069827527677 ];
+num = 0.5641895835477550741; for i=1:5,num = -z(id2).*num/sqrt(2) + r(i); end
+den = 1.0;                   for i=1:6,den = -z(id2).*den/sqrt(2) + q(i); end
+e = num./den; lp(id2) = log(e/2) - z(id2).^2/2;
+id3 = ~id2 & ~id1; lp(id3) = log(erfc(-z(id3)/sqrt(2))/2);  % third case: rest
+if nargout>1                                        % compute first derivative
+    dlp = zeros(size(z));                                      % allocate memory
+    dlp( id2) = abs(den./num) * sqrt(2/pi); % strictly positive first derivative
+    dlp(~id2) = exp(-z(~id2).*z(~id2)/2-lp(~id2))/sqrt(2*pi); % safe computation
+    if nargout>2                                     % compute second derivative
+        d2lp = -dlp.*abs(z+dlp);             % strictly negative second derivative
+        if nargout>3                                    % compute third derivative
+            d3lp = -d2lp.*abs(z+2*dlp)-dlp;     % strictly positive third derivative
+        end
+    end
+end
+end
+
+%% multi-fidelity surrogate model
+function [MK_model_fval,MK_model_con,MK_model_coneq,output]=getHieraKrigingModel...
     (x_list,fval_list,con_list,coneq_list)
 % base on library_data to create radialbasis model and function
 % if input model, function will updata model
@@ -1484,316 +1396,276 @@ output.coneq_list=coneq_list;
     end
 end
 
-function [predict_function,MK_model]=interpMultiKriging...
-    (XHF, YHF, XLF, YLF)
-% construct Multi-Level Kriging 
+function [predict_function,HK_model]=interpHieraKrigingPreModel...
+    (XHF,YHF,XLF,YLF,hyp)
+% construct Hierarchical Kriging version 1
 % XHF, YHF are x_HF_number x variable_number matrix
 % XLF, YLF are x_LF_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_HF_number matrix
 % theta beta gama sigma_sq is normalizede, so predict y is normalize
+% hyp: hyp_HF, hyp_LF
+% notice theta=exp(hyp)
 %
 % input:
-% XHF, YHF, XLF, YLF
+% XHF, YHF, XLF, YLF, hyp(hyp_HF, hyp_LF)
 %
 % output:
 % kriging model (predict_function,
-% XHF, YHF, XLF_list, YLF_list, base_function_list)
+% XHF, YHF, XLF, YLF, base_function_list)
 %
-% Copyright 2022.12 Adel
+% reference: [1] HAN Z-H, GöRTZ S. Hierarchical Kriging Model for
+% Variable-Fidelity Surrogate Modeling [J]. AIAA Journal, 2012, 50(9):
+% 1885-96.
 %
-[x_HF_number,variable_number]=size(XHF);
-
-% construct low fidelity
-[predict_function_LF,kriging_model_LF]=interpKrigingPreModel...
-    (XLF,YLF);
-
-% evaluate error in high fidelity point
-LF_predict_list=zeros(x_HF_number,1); % 
-for x_index=1:x_HF_number
-    LF_predict_list(x_index,1)=...
-        kriging_model_LF.predict_function(XHF(x_index,:));
-end
-
-% construct bias kriging model
-Y_bias=YHF-LF_predict_list;
-[predict_function_bias,kriging_model_bias]=interpKrigingPreModel...
-    (XHF,Y_bias);
-
-% initialization predict function
-predict_function=@(predict_x) interpMultiKrigingPredictor...
-    (predict_x,predict_function_LF,predict_function_bias);
-
-MK_model.XHF=XHF;
-MK_model.X=XHF;
-MK_model.YHF=YHF;
-MK_model.Y=YHF;
-MK_model.kriging_model_LF=kriging_model_LF;
-MK_model.kriging_model_bias=kriging_model_bias;
-MK_model.predict_function=predict_function;
-
-    function predict_fval=interpMultiKrigingPredictor...
-            (predict_x,predict_function_LF,predict_function_bias)
-        % kriging interpolation predict function
-        %
-        predict_fval=predict_function_LF(predict_x)+...
-            predict_function_bias(predict_x);
-    end
-end
-
-function [predict_function,kriging_model]=interpKrigingPreModel...
-    (X,Y,theta)
-% version 4, nomalization method is grassian
-% prepare model, optimal theta and calculation parameter
-% X, Y are x_number x variable_number matrix
-% aver_X,stdD_X is 1 x x_number matrix
-% theta beta gama sigma_sq is normalizede, so predict y is normalize
+% Copyright 2023.2 Adel
 %
-% input initial data X, Y, which are real data
-%
-% output is a kriging model, include predict_function...
-% X, Y, base_function_list
-%
-% Copyright 2022.10 Adel
-%
+X=[XHF;XLF];
+Y=[YHF;YLF];
 [x_number,variable_number]=size(X);
-if nargin < 3
-    theta=ones(1,variable_number);
+x_HF_number=size(XHF,1);
+x_LF_number=size(XLF,1);
+if nargin < 5
+    hyp=ones(1,2*variable_number);
 end
+hyp_LF=hyp((variable_number+1):end);
+hyp_HF=hyp(1:variable_number);
 
 % normalize data
-aver_X = mean(X);
-stdD_X = std(X);
-aver_Y = mean(Y);
-stdD_Y = std(Y);
+aver_X=mean(X);
+stdD_X=std(X);
+aver_Y=mean(Y);
+stdD_Y=std(Y);
 index__=find(stdD_X == 0);
 if  ~isempty(index__),  stdD_X(index__)=1; end
 index__=find(stdD_Y == 0);
 if  ~isempty(index__),  stdD_Y(index__)=1; end
-X_nomlz=(X-repmat(aver_X,x_number,1))./repmat(stdD_X,x_number,1);
-Y_nomlz=(Y-repmat(aver_Y,x_number,1))./repmat(stdD_Y,x_number,1);
+XHF_nomlz=(XHF-aver_X)./stdD_X;
+YHF_nomlz=(YHF-aver_Y)./stdD_Y;
+XLF_nomlz=(XLF-aver_X)./stdD_X;
+YLF_nomlz=(YLF-aver_Y)./stdD_Y;
+
+% first step
+% construct low fidelity model
 
 % initial X_dis_sq
-X_dis_sq=zeros(x_number,x_number,variable_number);
-for rank=1:x_number
-    for colume=1:rank-1
-        X_dis_sq(rank,colume,:)=X_dis_sq(colume,rank,:);
-    end
-    for colume=rank:x_number
-        X_dis_sq(rank,colume,:)=(X_nomlz(rank,:)-X_nomlz(colume,:)).^2;
-    end
+XHF_dis_sq=zeros(x_HF_number,x_HF_number,variable_number);
+for variable_index=1:variable_number
+    XHF_dis_sq(:,:,variable_index)=...
+        (XHF_nomlz(:,variable_index)-XHF_nomlz(:,variable_index)').^2;
+end
+XLF_dis_sq=zeros(x_LF_number,x_LF_number,variable_number);
+for variable_index=1:variable_number
+    XLF_dis_sq(:,:,variable_index)=...
+        (XLF_nomlz(:,variable_index)-XLF_nomlz(:,variable_index)').^2;
 end
 
+% regression function define
+% notice reg_function process no normalization data
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
+
+% calculate reg
+fval_reg_nomlz_LF=(reg_function(XLF)-aver_Y)./stdD_Y;
+
 % optimal to get hyperparameter
-fmincon_option=optimoptions(@fmincon,'Display','iter-detailed',...
+low_bou_hyp=-4*ones(1,variable_number);
+up_bou_hyp=4*ones(1,variable_number);
+fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
-    'MaxIterations',10);
-low_bou_kriging=1e-1*ones(variable_number,1);
-up_bou_kriging=20*ones(variable_number,1);
-object_function_kriging=@(theta) objectFunctionKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta);
+    'MaxIterations',10,'SpecifyObjectiveGradient',true);
+object_function_hyp=@(hyp) objectNLLKriging...
+    (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,hyp,fval_reg_nomlz_LF);
 
-theta=fmincon...
-    (object_function_kriging,theta,[],[],[],[],low_bou_kriging,up_bou_kriging,[],fmincon_option);
+% [fval,gradient]=object_function_hyp(hyp_LF)
+% [~,gradient_differ]=differ(object_function_hyp,hyp_LF)
+
+hyp_LF=fmincon...
+    (object_function_hyp,hyp_LF,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
 
 % get parameter
-[covariance,inv_covariance,fval_reg,beta,sigma_sq]=interpKriging...
-    (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta);
-gama=inv_covariance*(Y_nomlz-fval_reg*beta);
-FTRF=fval_reg'*inv_covariance*fval_reg;
+[cov_LF,inv_cov_LF,beta_LF,sigma_sq_LF]=interpKriging...
+    (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,exp(hyp_LF),fval_reg_nomlz_LF);
+gama_LF=inv_cov_LF*(YLF_nomlz-fval_reg_nomlz_LF*beta_LF);
+FTRF_LF=fval_reg_nomlz_LF'*inv_cov_LF*fval_reg_nomlz_LF;
 
 % initialization predict function
-predict_function=@(predict_x) interpKrigingPredictor...
-    (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    theta,beta,gama,sigma_sq,...
-    inv_covariance,fval_reg,FTRF,predict_x);
+predict_function_LF=@(X_predict) interpKrigingPredictor...
+    (X_predict,XLF_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_LF_number,variable_number,exp(hyp_LF),beta_LF,gama_LF,sigma_sq_LF,...
+    inv_cov_LF,fval_reg_nomlz_LF,FTRF_LF,reg_function);
 
-kriging_model.X=X;
-kriging_model.Y=Y;
-kriging_model.X_normalize=X_nomlz;
-kriging_model.Y_normalize=Y_nomlz;
-kriging_model.fval_regression=fval_reg;
-kriging_model.covariance=covariance;
-kriging_model.inv_covariance=inv_covariance;
+% second step
+% construct hierarchical model
 
-kriging_model.theta=theta;
-kriging_model.beta=beta;
-kriging_model.gama=gama;
-kriging_model.sigma_sq=sigma_sq;
-kriging_model.aver_X=aver_X;
-kriging_model.stdD_X=stdD_X;
-kriging_model.aver_Y=aver_Y;
-kriging_model.stdD_Y=stdD_Y;
+% evaluate low fidelty predict value in high fidelity point as base fval
+reg_function=@(X) predict_function_LF(X);
 
-kriging_model.predict_function=predict_function;
+% calculate reg
+fval_reg_nomlz_HF=(reg_function(XHF)-aver_Y)./stdD_Y;
 
-    function fval=objectFunctionKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta)
+% optimal to get hyperparameter
+object_function_hyp=@(hyp) objectNLLKriging...
+    (XHF_dis_sq,YHF_nomlz,x_HF_number,variable_number,hyp,fval_reg_nomlz_HF);
+
+% [fval,gradient]=object_function_hyp(hyp_HF)
+% [~,gradient_differ]=differ(object_function_hyp,hyp_HF)
+
+% drawFunction(object_function_hyp,low_bou_hyp,up_bou_hyp);
+
+hyp_HF=fmincon...
+    (object_function_hyp,hyp_HF,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
+
+% calculate covariance and other parameter
+[cov_HF,inv_cov_HF,beta_HF,sigma_sq_HF]=interpKriging...
+    (XHF_dis_sq,YHF_nomlz,x_HF_number,variable_number,exp(hyp_HF),fval_reg_nomlz_HF);
+gama_HF=inv_cov_HF*(YHF_nomlz-fval_reg_nomlz_HF*beta_HF);
+FTRF_HF=fval_reg_nomlz_HF'*inv_cov_HF*fval_reg_nomlz_HF;
+
+% initialization predict function
+predict_function=@(X_predict) interpKrigingPredictor...
+    (X_predict,XHF_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_HF_number,variable_number,exp(hyp_HF),beta_HF,gama_HF,sigma_sq_HF,...
+    inv_cov_HF,fval_reg_nomlz_HF,FTRF_HF,reg_function);
+
+HK_model.X=XHF;
+HK_model.Y=YHF;
+HK_model.XHF=XHF;
+HK_model.YHF=YHF;
+HK_model.XLF=XLF;
+HK_model.YLF=YLF;
+HK_model.cov_LF=cov_LF;
+HK_model.inv_cov_LF=inv_cov_LF;
+HK_model.cov_HF=cov_HF;
+HK_model.inv_cov_HF=inv_cov_HF;
+
+hyp=[hyp_HF,hyp_LF];
+HK_model.hyp=hyp;
+HK_model.aver_X=aver_X;
+HK_model.stdD_X=stdD_X;
+HK_model.aver_Y=aver_Y;
+HK_model.stdD_Y=stdD_Y;
+
+HK_model.predict_function=predict_function;
+
+% abbreviation:
+% num: number, pred: predict, vari: variable, hyp: hyper parameter
+% NLL: negative log likelihood
+    function [fval,gradient]=objectNLLKriging...
+            (X_dis_sq,Y,x_num,vari_num,hyp,F_reg)
         % function to minimize sigma_sq
         %
-        cov__=zeros(x_number,x_number);
-        for rank_index__=1:x_number
-            for colume_index__=1:rank_index__-1
-                cov__(rank_index__,colume_index__)=...
-                    cov__(colume_index__,rank_index__);
-            end
-            cov__(rank_index__,rank_index__)=1+1e-6; % stabilize
-            for colume_index__=rank_index__+1:x_number
-                temp__=X_dis_sq(rank_index__,colume_index__,:);
-                cov__(rank_index__,colume_index__)=...
-                    exp(-temp__(:)'*theta(:));
-            end
-        end
+        theta=exp(hyp);
+        [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
         
-        % F is base funcion fval of data_point_x
-        fval_reg__=[ones(x_number,1),X];
-        
-        % coefficient calculation
-        inv_cov__=inv(cov__);
-        beta__=(fval_reg__'*inv_cov__*fval_reg__)\fval_reg__'*inv_cov__*Y;
-        Y_fbeta=Y-fval_reg__*beta__;
-        fval=(Y_fbeta'*inv_cov__*Y_fbeta)/x_number;
-        
-    end
-    function [cov,inv_cov,fval_reg,beta,sigma_sq]=interpKriging...
-            (X_dis_sq,X,Y,x_number,variable_number,theta)
-        % total riging interpolation function
-        %
-        % input X, Y as initial data, theta and base function
-        %
-        % output covariance, inv of covariance,...
-        %
-        % Copyright 2022 Adel
-        %
-        cov=zeros(x_number,x_number);
-        for rank_index__=1:x_number
-            for colume_index__=1:rank_index__-1
-                cov(rank_index__,colume_index__)=...
-                    cov(colume_index__,rank_index__);
-            end
-            cov(rank_index__,rank_index__)=1+1e-6; % stabilize
-            for colume_index__=rank_index__+1:x_number
-                temp__=X_dis_sq(rank_index__,colume_index__,:);
-                cov(rank_index__,colume_index__)=...
-                    exp(-temp__(:)'*theta(:));
+        % calculation negative log likelihood
+        L=chol(cov)';
+        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+
+        % calculate gradient
+        if nargout > 1
+            % gradient
+            gradient=zeros(vari_num,1);
+            for vari_index=1:vari_num
+                dcov_dtheta=-(X_dis_sq(:,:,vari_index).*cov)*theta(vari_index)/vari_num;
+
+                dinv_cov_dtheta=...
+                    -inv_cov*dcov_dtheta*inv_cov;
+
+                dinv_FTRF_dtheta=-inv_FTRF*...
+                    (F_reg'*dinv_cov_dtheta*F_reg)*...
+                    inv_FTRF;
+                
+                dmiu_dtheta=dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
+                    inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
+                
+                dY_Fmiu_dtheta=-F_reg*dmiu_dtheta;
+
+                dsigma2_dtheta=(dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
+                    Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
+                    Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
+                
+                dlnsigma2_dtheta=1/sigma2*dsigma2_dtheta;
+
+                dlndetR=trace(inv_cov*dcov_dtheta);
+
+                gradient(vari_index)=x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
             end
         end
-        
-        % F is base funcion fval of data_point_x
-%         fval_reg=ones(x_number,1); % zero
-        fval_reg=[ones(x_number,1),X]; % linear
-        
-        % coefficient calculation
-        inv_cov=inv(cov);
-        beta=(fval_reg'*inv_cov*fval_reg)\fval_reg'*inv_cov*Y;
-        sigma_sq=(Y-fval_reg*beta)'*inv_cov*(Y-fval_reg*beta)/x_number;
     end
-    function [predict_fval,predict_variance]=interpKrigingPredictor...
-            (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            theta,beta,gama,sigma_sq,...
-            inv_covariance,fval_reg,FTRF,predict_x)
+    function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
+        % kriging interpolation kernel function
+        % Y(x)=beta+Z(x)
+        %
+        cov=zeros(x_num,x_num);
+        for vari_index=1:vari_num
+            cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
+        end
+        cov=exp(-cov/vari_num)+eye(x_num)*1e-6;
+
+        % coefficient calculation
+        inv_cov=cov\eye(x_num);
+        inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(size(F_reg,2));
+
+        % basical bias
+        beta=inv_FTRF*(F_reg'*inv_cov*Y);
+        Y_Fmiu=Y-F_reg*beta;
+        sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
+        
+    end
+    function [Y_pred,Var_pred]=interpKrigingPredictor...
+            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_num,vari_num,theta,beta,gama,sigma_sq,...
+            inv_cov,fval_reg,FTRF,reg_function)
         % kriging interpolation predict function
         % input predict_x and kriging model
         % predict_x is row vector
         % output the predict value
         %
-        % Copyright 2022 Adel
-        %
-        predict_x=predict_x(:)';
-        
+        [x_pred_num,~]=size(X_pred);
+        fval_reg_pred=reg_function(X_pred);
+
         % normalize data
-        predict_x=(predict_x-aver_X)./stdD_X;
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
         
-        % predict value
-        predict_cov__=exp(-(predict_x-X_nomlz).^2*theta(:));
+        % predict covariance
+        predict_cov=zeros(x_num,x_pred_num);
+        for vari_index=1:vari_num
+            predict_cov=predict_cov+...
+                (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2*theta(vari_index);
+        end
+        predict_cov=exp(-predict_cov);
+
+        % predict base fval
         
-%         predict_fval_reg__=1; % zero
-        predict_fval_reg__=[1,predict_x]; % linear
-        predict_fval=predict_fval_reg__*beta+predict_cov__'*gama;
+        Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
         
         % predict variance
-        u__=fval_reg'*inv_covariance*predict_cov__;
-        predict_variance=sigma_sq*...
+        u__=fval_reg'*inv_cov*predict_cov-fval_reg_pred_nomlz';
+        Var_pred=sigma_sq*...
             (1+u__'/FTRF*u__+...
-            -predict_cov__'*inv_covariance*predict_cov__);
+            -predict_cov'*inv_cov*predict_cov);
         
         % normalize data
-        predict_fval=predict_fval*stdD_Y+aver_Y;
-        predict_variance=predict_variance*stdD_Y*stdD_Y;
+        Y_pred=Y_pred*stdD_Y+aver_Y;
+        Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
+    end
+    function F_reg=regZero(X)
+        % zero order base funcion
+        %
+        F_reg=ones(size(X,1),1); % zero
+    end
+    function F_reg=regLinear(X)
+        % first order base funcion
+        %
+        F_reg=[ones(size(X,1),1),X]; % linear
     end
 end
 
-function interpVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1)';
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1)';
-end
-
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou'+low_bou';
-            predict_result(y_index,x_index)=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-    view(3);
-end
-end
-
+%% data library
 function [fval_list,con_list,coneq_list]=dataLibraryUpdata...
     (data_library_name,model_function,x_list)
 % updata data library
@@ -1942,6 +1814,7 @@ else
 end
 end
 
+%% LHD
 function [X,X_new,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,X_exist,...
     low_bou,up_bou,cheapcon_function)

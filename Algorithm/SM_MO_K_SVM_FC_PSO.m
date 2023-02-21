@@ -29,47 +29,7 @@ delete('result_total.txt');
 
 line(fval_pareto(:,1),fval_pareto(:,2));
 
-function [con,coneq]=cheapconFunction(x,A,B,Aeq,Beq,cheapcon_function)
-% convert A, B, Aeq, Beq to total cheapcon function
-%
-if nargin < 6
-    cheapcon_function=[];
-    if nargin < 5
-        Beq=[];
-        if nargin < 4
-            Aeq=[];
-            if nargin < 3
-                B=[];
-                if nargin < 2
-                    A=[];
-                end
-            end
-        end
-    end
-end
-con=[];
-coneq=[];
-if ~isempty(A)
-    if isempty(B)
-        con=[con;A*x];
-    else
-        con=[con;A*x-B];
-    end
-end
-if ~isempty(Aeq)
-    if isempty(Beq)
-        coneq=[coneq;Aeq*x];
-    else
-        coneq=[coneq;Aeq*x-Beq];
-    end
-end
-if ~isempty(cheapcon_function)
-    [lincon,linconeq]=cheapcon_function(x);
-    con=[con;lincon];
-    coneq=[coneq;linconeq];
-end
-end
-
+%% main function
 function [x_pareto,fval_pareto,NFE,output]=optimalSurrogateMOKSVMFCPSO...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
     cheapcon_function,model_function,....
@@ -745,6 +705,8 @@ output.result_pareto=result_pareto;
         end
     end
 end
+
+%% pareto front
 function [pareto_index_list,feasible_index_list]=getParetoFront...
     (fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
     pareto_torlance)
@@ -910,6 +872,8 @@ for x_index=1:x_number
 end
 
 end
+
+%% multi-objective indicator
 function crowd_list=calParetoCrowd(fval_list,fval_exit_list)
 % calculate crowded the same as NSGA-II
 %
@@ -1132,6 +1096,7 @@ end
 
 end
 
+%% data check
 function [x_best,fval_best,con_best,coneq_best]=findMinRaw...
     (x_list,fval_list,con_list,coneq_list,...
     cheapcon_function,nonlcon_torlance)
@@ -1273,6 +1238,7 @@ if ~isempty(coneq_list)
 end
 end
 
+%% surrogate model
 function [kriging_model_fval,kriging_model_con,kriging_model_coneq,output]=getKrigingModel...
     (x_list,fval_list,con_list,coneq_list,...
     kriging_model_fval,kriging_model_con,kriging_model_coneq)
@@ -1618,76 +1584,7 @@ kriging_model.predict_function=predict_function;
     end
 end
 
-function interpolationVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-delete(figure_handle.Children);
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1);
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1);
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou+low_bou;
-            [~,predict_result(y_index,x_index)]=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-end
-end
-
+%% FCM
 function FC_model=classifyFuzzyClustering...
     (X,classify_number,low_bou,up_bou,m)
 % get fuzzy cluster model
@@ -1799,6 +1696,7 @@ FC_model.x_class_list=x_class_list;
 
 end
 
+%% SVM
 function [predict_function,SVM_model]=classifySupportVectorMachine...
     (X,class,C,low_bou,up_bou,kernel_function)
 % generate support vector machine model version 0
@@ -1923,87 +1821,8 @@ SVM_model.predict_function=predict_function;
         end
     end
 end
-function classifySupportVectorMachineVisualization...
-    (SVM_model,low_bou,up_bou,figure_handle)
-% visualization SVM_model
-% red is 1, blue is 0
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 1
-        error('classifySupportVectorMachineVisualization: not enough input');
-    end
-end
-X=SVM_model.X;
-Y=SVM_model.Y;
-% nomlz_X=SVM_model.nomlz_X;
-% alpha=SVM_model.alpha;
-% w=SVM_model.w;
-% b=SVM_model.b;
-% kernel_function=SVM_model.kernel_function;
-predict_function=SVM_model.predict_function;
 
-if nargin < 3
-    up_bou=max(X);
-    if nargin < 2
-        low_bou=min(X);
-    end
-end
-
-% check dimension
-[x_number,variable_number]=size(X);
-if variable_number > 2
-    warning('classifySupportVectorMachineVisualization: dimension large than 2');
-    bias=(up_bou+low_bou)/2;
-    bias=low_bou;
-end
-
-delete(figure_handle.Children);
-axes_handle=axes(figure_handle);
-
-% find point in boundary and label
-X_positive=[];
-X_negative=[];
-for x_index=1:x_number
-    x=X(x_index,:);
-    if ~(sum(x > up_bou) || sum(x < low_bou))
-        if Y(x_index) > 0
-            X_positive=[X_positive;x];
-        else
-            X_negative=[X_negative;x];
-        end
-    end
-end
-
-% draw zero value line
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-[X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-predict_class=zeros(grid_number+1);
-predict_fval=zeros(grid_number+1);
-for x_index=1:grid_number+1
-    for y_index=1:grid_number+1
-        if variable_number > 2
-            predict_x=([x_index,y_index,bias(3:end)]-1).*d_bou+low_bou;
-        else
-            predict_x=([x_index,y_index]-1).*d_bou+low_bou;
-        end
-        [predict_class(y_index,x_index),predict_fval(y_index,x_index)]=...
-            predict_function(predict_x);
-    end
-end
-contour(axes_handle,X_draw,Y_draw,predict_class);
-% contour(X_draw,Y_draw,predict_fval,[0.5,0.5]);
-
-% draw point
-if ~isempty(X_positive)
-    line(axes_handle,X_positive(:,1),X_positive(:,2),'LineStyle','none','Marker','o','Color','r');
-end
-if ~isempty(X_negative)
-    line(axes_handle,X_negative(:,1),X_negative(:,2),'LineStyle','none','Marker','o','Color','b');
-end
-end
-
+%% data library
 function [fval_list,con_list,coneq_list]=dataLibraryUpdata...
     (data_library_name,model_function,x_list)
 % updata data library
@@ -2152,6 +1971,7 @@ else
 end
 end
 
+%% LHD
 function [X,X_new,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,X_exist,...
     low_bou,up_bou,cheapcon_function)
@@ -2326,122 +2146,4 @@ distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
         end
         distance_min__=sqrt(distance_min__);
     end
-end
-
-function drawFunction(draw_function,low_bou,up_bou,...
-    grid_number,Y_min,Y_max,figure_handle)
-if nargin < 7
-    figure_handle=figure(10);
-    if nargin < 6
-        Y_max=inf;
-        if nargin < 5
-            Y_min=-inf;
-            if nargin < 4
-                grid_number=100;
-            end
-        end
-    end
-end
-low_bou=low_bou(:)';
-up_bou=up_bou(:)';
-
-axes_handle=figure_handle.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(figure_handle);
-end
-axes_context=axes_handle.Children;
-dimension=length(low_bou);
-
-switch dimension
-    case 1
-        d_bou=(up_bou-low_bou)/grid_number;
-        X__=low_bou:d_bou:up_bou;
-        fval__=zeros(grid_number+1,1);
-        for x_index__=1:(grid_number+1)
-            predict_x=X__(x_index__);
-            fval__(x_index__)=draw_function(predict_x);
-        end
-        line(axes_handle,X__,fval__);
-        xlabel('X');
-        ylabel('value');
-        
-    case 2
-        d_bou=(up_bou-low_bou)/grid_number;
-        [X__,Y]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        fval__=zeros(grid_number+1,grid_number+1);
-        for x_index__=1:grid_number+1
-            for y_index__=1:grid_number+1
-                predict_x=([x_index__,y_index__]-1).*d_bou+low_bou;
-                fval__(y_index__,x_index__)=draw_function(predict_x);
-            end
-        end
-        fval__(find(fval__ > Y_max))=Y_max;
-        fval__(find(fval__ < Y_min))=Y_min;
-        axes_context=[axes_context;surface(X__,Y,fval__(:,:),'FaceAlpha',0.5,'EdgeColor','none');];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
-        zlabel('value');
-        view(3);
-end
-end
-
-function drawFunction2(draw_function,low_bou,up_bou,...
-    grid_number,Y_min,Y_max,figure_handle)
-if nargin < 7
-    figure_handle=figure(10);
-    if nargin < 6
-        Y_max=inf;
-        if nargin < 5
-            Y_min=-inf;
-            if nargin < 4
-                grid_number=100;
-            end
-        end
-    end
-end
-low_bou=low_bou(:)';
-up_bou=up_bou(:)';
-
-axes_handle=figure_handle.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(figure_handle);
-end
-axes_context=axes_handle.Children;
-dimension=length(low_bou);
-
-switch dimension
-    case 1
-        d_bou=(up_bou-low_bou)/grid_number;
-        X__=low_bou:d_bou:up_bou;
-        fval__=zeros(grid_number+1,2);
-        for x_index__=1:(grid_number+1)
-            fval__(x_index__,:)=draw_function(X__(x_index__));
-        end
-        line(axes_handle,X__,fval__(:,1));
-        line(axes_handle,X__,fval__(:,2));
-        xlabel('X');
-        ylabel('value');
-        
-    case 2
-        d_bou=(up_bou-low_bou)/grid_number;
-        [X__,Y]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        fval__=zeros(grid_number+1,grid_number+1,2);
-        for x_index__=1:grid_number+1
-            for y_index__=1:grid_number+1
-                predict_x=([x_index__,y_index__]-1).*d_bou+low_bou;
-                fval__(y_index__,x_index__,:)=draw_function(predict_x);
-            end
-        end
-        fval__(find(fval__ > Y_max))=Y_max;
-        fval__(find(fval__ < Y_min))=Y_min;
-        axes_context=[axes_context;
-            surface(X__,Y,fval__(:,:,1),'FaceAlpha',0.5,'EdgeColor','none');
-            surface(X__,Y,fval__(:,:,2),'FaceAlpha',0.5,'EdgeColor','none');];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
-        zlabel('value');
-        view(3);
-end
 end

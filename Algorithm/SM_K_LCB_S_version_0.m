@@ -173,7 +173,7 @@ while ~done
         object_var_function,w);
     
     if DRAW_FIGURE_FLAG
-        interpolationVisualize(kriging_model_fval,low_bou,up_bou);
+        interpVisualize(kriging_model_fval,low_bou,up_bou);
         drawFunction(lcb_function,low_bou,up_bou)
     end
     
@@ -402,7 +402,7 @@ base_functon1=@(x) 1;
 base_function_list={base_functon1};
 
 theta_fval=ones(variable_number,1)*0.5;
-kriging_model_fval=interpolationKrigingPreModel...
+kriging_model_fval=interpKrigingPreModel...
     (x_list,fval_list,theta_fval,base_function_list);
 
 if ~isempty(con_list)
@@ -413,7 +413,7 @@ if ~isempty(con_list)
         'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[]);
     kriging_model_con=repmat(kriging_model_con,[size(con_list,2),1]);
     for con_index=1:size(con_list,2)
-        kriging_model_con(con_index)=interpolationKrigingPreModel...
+        kriging_model_con(con_index)=interpKrigingPreModel...
             (x_list,con_list(:,con_index),theta_con,base_function_list);
     end
 else
@@ -428,7 +428,7 @@ if ~isempty(coneq_list)
         'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[]);
     kriging_model_coneq=repmat(kriging_model_coneq,[size(coneq_list,2),1]);
     for coneq_index=1:size(coneq_list,2)
-        kriging_model_coneq(coneq_index)=interpolationKrigingPreModel...
+        kriging_model_coneq(coneq_index)=interpKrigingPreModel...
             (x_list,coneq_list(:,coneq_index),theta_coneq,base_function_list);
     end
 else
@@ -501,7 +501,7 @@ output.coneq_list=coneq_list;
         end
     end
 end
-function kriging_model=interpolationKrigingPreModel...
+function kriging_model=interpKrigingPreModel...
     (X,Y,theta,base_function_list)
 % prepare model, optimal theta, load result and calculation parameter
 % input initial data X, Y, which are real data
@@ -519,7 +519,7 @@ if nargin < 4
     if nargin < 3
         theta=[];
         if nargin < 2
-            error('interpolationKrigingPreModel: lack input');
+            error('interpKrigingPreModel: lack input');
         end
     end
 end
@@ -561,12 +561,12 @@ theta=fmincon...
     (object_function,theta,[],[],[],[],low_bou_kriging,up_bou_kriging,[],options);
 
 % get parameter
-[covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpolationKriging...
+[covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpKriging...
     (X_dis_sq,X_nomlz,Y_nomlz,x_number,variable_number,theta,base_function_list);
 gama=inv_convariance*(Y_nomlz-fval_reg*beta);
 
 % initialization predict function
-predict_function=@(predict_x) interpolationKrigingPredictor...
+predict_function=@(predict_x) interpKrigingPredictor...
     (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
     theta,beta,gama,sigma_sq,...
     inv_convariance,fval_reg,base_function_list,predict_x);
@@ -593,12 +593,12 @@ kriging_model.predict_function=predict_function;
             (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list)
         % function to minimize sigma_sq
         %
-        [~,~,~,~,sigma_sq]=interpolationKriging...
+        [~,~,~,~,sigma_sq]=interpKriging...
             (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list);
     end
-    function [covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpolationKriging...
+    function [covariance,inv_convariance,fval_reg,beta,sigma_sq]=interpKriging...
             (X_dis_sq,X,Y,x_number,variable_number,theta,base_function_list)
-        % total riging interpolation function
+        % total riging interp function
         % input X, Y as initial data, theta and base function
         % output beta and gama, xita
         %
@@ -640,11 +640,11 @@ kriging_model.predict_function=predict_function;
         beta=(fval_reg'*inv_convariance*fval_reg)\fval_reg'*inv_convariance*Y;
         sigma_sq=(Y-fval_reg*beta)'*inv_convariance*(Y-fval_reg*beta)/x_number;
     end
-    function [predict_fval,predict_variance]=interpolationKrigingPredictor...
+    function [predict_fval,predict_variance]=interpKrigingPredictor...
             (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             theta,beta,gama,sigma_sq,...
             inv_convariance,fval_reg,base_function_list,predict_x)
-        % kriging interpolation predict function
+        % kriging interp predict function
         % input predict_x and kriging model
         % predict_x is row vector
         % output the predict value
@@ -678,75 +678,6 @@ kriging_model.predict_function=predict_function;
         predict_fval=predict_fval*stdD_Y+aver_Y;
         predict_variance=predict_variance*stdD_Y*stdD_Y;
     end
-end
-function interpolationVisualize...
-    (model,low_bou,up_bou,figure_handle)
-% visualization polynamial respond surface model
-% figrue is 100
-%
-% Copyright 2022 Adel
-%
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
-        end
-    end
-end
-if size(low_bou,1) ~= size(low_bou,1)
-    error('interpolationRadialBasisVisualize: boundary incorrect');
-end
-if size(low_bou,1) > 2
-    error('interpolationRadialBasisVisualize: dimension large than two');
-end
-
-delete(figure_handle.Children);
-axes_handle=axes(figure_handle);
-
-x_list=model.X;
-y_list=model.Y;
-predict_function=model.predict_function;
-
-% get boundary
-if isempty(low_bou)
-    low_bou=min(x_list,[],1)';
-end
-if isempty(up_bou)
-    up_bou=max(x_list,[],1)';
-end
-
-grid_number=100;
-d_bou=(up_bou-low_bou)/grid_number;
-
-if size(x_list,2) == 1
-    predict_result=zeros(grid_number+1,1);
-    X_draw=low_bou:d_bou:(low_bou+grid_number*d_bou);
-    for x_index=1:grid_number+1
-        predict_x=(x_index-1).*d_bou+low_bou;
-        predict_result(x_index)=predict_function(predict_x);
-    end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-elseif size(x_list,2) == 2
-    predict_result=zeros(grid_number+1);
-    [X_draw,Y_draw]=meshgrid(low_bou(1):d_bou(1):(low_bou(1)+grid_number*d_bou(1)),...
-        low_bou(2):d_bou(2):(low_bou(2)+grid_number*d_bou(2)));
-    for x_index=1:grid_number+1
-        for y_index=1:grid_number+1
-            predict_x=([x_index,y_index]-1).*d_bou'+low_bou';
-            predict_result(y_index,x_index)=predict_function(predict_x);
-        end
-    end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
-    xlabel('X');
-    ylabel('Y');
-    zlabel('Z');
-end
 end
 
 function [fval_list,con_list,coneq_list]=dataLibraryUpdata...
