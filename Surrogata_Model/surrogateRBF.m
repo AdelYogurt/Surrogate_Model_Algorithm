@@ -2,79 +2,65 @@ clc;
 clear;
 close all hidden;
 
-
-% data=importdata('optimalSurrogateRadialBasis_result.txt');
-% x_list=data(1:6,end-1:end);
-% fval_list=data(1:6,1);
-% low_bou=[-3;-3];
-% up_bou=[3;3];
-
-load('matlab')
-
-% x_list=[2;3;4];
-% fval_list=[2;3;4];
-% low_bou=[2];
-% up_bou=[4];
-
-radialbasis_model=interpRadialBasisPreModel(x_list,fval_list);
+load('PK.mat');
+[predict_function,radialbasis_model]=interpRadialBasisPreModel(X,Y);
 figure_handle=figure(1);
 interpVisualize(radialbasis_model,low_bou,up_bou,figure_handle)
 
-predict_function=radialbasis_model.predict_function;
-
-function radialbasis_model=interpRadialBasisPreModel...
+function [predict_function,radialbasis_model]=interpRadialBasisPreModel...
     (X,Y,basis_function)
-% radial basis function interp pre model function version 1
+% radial basis function interp pre model function
 % input initial data X, Y, which are real data
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
 % output is a radial basis model, include X, Y, base_function
 % and predict_function
-% beta is normalizede, so predict y is normalizede
 %
-% Copyright 2022 Adel
+% Copyright 2023 Adel
 %
-if nargin < 9
-    X_nomlz=[];
-    if nargin < 3
-        basis_function=[];
-    end
+if nargin < 3
+    basis_function=[];
 end
 
 [x_number,variable_number]=size(X);
 
 % normalize data
-aver_X = mean(X);
-stdD_X = std(X);
-aver_Y = mean(Y);
-stdD_Y = std(Y);
-index__ = find(stdD_X == 0);
+aver_X=mean(X);
+stdD_X=std(X);
+aver_Y=mean(Y);
+stdD_Y=std(Y);
+index__=find(stdD_X == 0);
 if ~isempty(index__),stdD_X(index__)=1;end
-index__ = find(stdD_Y == 0);
+index__=find(stdD_Y == 0);
 if ~isempty(index__),stdD_Y(index__)=1;end
-X_nomlz = (X - repmat(aver_X,x_number,1)) ./ repmat(stdD_X,x_number,1);
-Y_nomlz = (Y - repmat(aver_Y,x_number,1)) ./ repmat(stdD_Y,x_number,1);
+X_nomlz=(X-aver_X)./stdD_X;
+Y_nomlz=(Y-aver_Y)./stdD_Y;
 
 if isempty(basis_function)
     c=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
-    basis_function=@(r) exp(-(r'*r)/c);
-%     basis_function=@(r) sqrt(r'*r+c*c);
+    basis_function=@(r) exp(-(r.^2)/c);
 end
 
-[beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
-    (X_nomlz,Y_nomlz,basis_function,x_number);
+% initialization distance of all X
+X_dis=zeros(x_number,x_number);
+for variable_index=1:variable_number
+    X_dis=X_dis+(X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
+end
+X_dis=sqrt(X_dis);
+
+[beta,rdibas_matrix]=interpRadialBasis...
+    (X_dis,Y_nomlz,basis_function,x_number);
 
 % initialization predict function
-predict_function=@(predict_x) interpRadialBasisPredictor...
-    (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    beta,basis_function,predict_x);
+predict_function=@(X_predict) interpRadialBasisPredictor...
+    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_number,variable_number,beta,basis_function);
 
 radialbasis_model.X=X;
 radialbasis_model.Y=Y;
 radialbasis_model.X_normalize=X_nomlz;
 radialbasis_model.Y_normalize=Y_nomlz;
 radialbasis_model.radialbasis_matrix=rdibas_matrix;
-radialbasis_model.inv_radialbasis_matrix=inv_rdibas_matrix;
 radialbasis_model.beta=beta;
 
 radialbasis_model.aver_X=aver_X;
@@ -85,59 +71,47 @@ radialbasis_model.basis_function=basis_function;
 
 radialbasis_model.predict_function=predict_function;
 
-    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
-            (X,Y,basis_function,x_number)
+% abbreviation:
+% num: number, pred: predict, vari: variable
+    function [beta,rdibas_matrix]=interpRadialBasis...
+            (X_dis,Y,basis_function,x_number)
         % interp polynomial responed surface core function
         % calculation beta
         %
         % Copyright 2022 Adel
         %
-        rdibas_matrix=zeros(x_number);
-        for rank_index__=1:x_number
-            for colume_index__=1:rank_index__-1
-                rdibas_matrix(rank_index__,colume_index__)=...
-                    rdibas_matrix(colume_index__,rank_index__);
-            end
-            for colume_index__=rank_index__:x_number
-                rdibas_matrix(rank_index__,colume_index__)=...
-                    basis_function(X(rank_index__,:)'-X(colume_index__,:)');
-            end
-        end
+        rdibas_matrix=basis_function(X_dis);
         
         % stabilize matrix
         rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
         
-        inv_rdibas_matrix=inv(rdibas_matrix);
-        beta=inv_rdibas_matrix*Y;
+        % solve beta
+        beta=rdibas_matrix\Y;
     end
-    function [predict_y]=interpRadialBasisPredictor...
-            (X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            beta,basis_function,predict_x)
-        % radial basis function interp predict function
-        % input predict_x and radialbasis_model model
-        % predict_x is row vector
-        % output the predict value
+
+    function [Y_pred]=interpRadialBasisPredictor...
+            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_num,vari_num,beta,basis_function)
+        % radial basis function interpolation predict function
         %
-        % Copyright 2022 Adel
-        %
-        predict_x=predict_x(:);
-        
-        [x_number__,~]=size(X_nomlz);
-        
+        [x_pred_num,~]=size(X_pred);
+
         % normalize data
-        predict_x=(predict_x-aver_X')./stdD_X';
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
         
-        % predict value
-        X_inner_product__=zeros(x_number__,1);
-        for index_i=1:x_number__
-            X_inner_product__(index_i,1)=...
-                basis_function(X_nomlz(index_i,:)'-predict_x);
+        % calculate distance
+        X_dis_pred=zeros(x_pred_num,x_num);
+        for vari_index=1:vari_num
+            X_dis_pred=X_dis_pred+...
+                (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
         end
+        X_dis_pred=sqrt(X_dis_pred);
         
         % predict variance
-        predict_y=beta'*X_inner_product__;
+        Y_pred=basis_function(X_dis_pred)*beta;
         
         % normalize data
-        predict_y=predict_y*stdD_Y+aver_Y;
+        Y_pred=Y_pred*stdD_Y+aver_Y;
     end
+
 end

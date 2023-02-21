@@ -3,28 +3,30 @@ clear;
 close all hidden;
 
 load('PK.mat');
-ensemleradialbasis_model=surrogateEnsemleRadialBasisPreModel...
-    (X,Y);
+[predict_function,radialbasis_model]=interpRadialBasisPreModel(X,Y);
 figure_handle=figure(1);
-interpVisualize(ensemleradialbasis_model,low_bou,up_bou,figure_handle)
+interpVisualize(radialbasis_model,low_bou,up_bou,figure_handle)
 
-function ensemleradialbasis_model=surrogateEnsemleRadialBasisPreModel...
+function [predict_function,radialbasis_model]=interpRadialBasisPreModel...
     (X,Y)
-% get ensemle radial basis function interpolation model function
-% using quadratic programming to calculate weigth of each sub model
-% using cubic interpolation optimal to decrese time use
+% radial basis function interp pre model function
 % input initial data X, Y, which are real data
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
-% output is a radial basis model, include X, Y, base_function
-% and predict_function
+% reference [1] to optimal hyper parameter of radial basis function
+% optimal function is cubic interpolation optimization
+% basis function is gaussian function
 %
-% reference: [1] SHI R, LIU L, LONG T, et al. An efficient ensemble of
-% radial basis functions method based on quadratic programming [J].
-% Engineering Optimization, 2016, 48(1202 - 25.
+% reference: [1] RIPPA S. An algorithm for selecting a good value for the
+% parameter c in radial basis function interpolation [J]. Advances in
+% Computational Mathematics, 1999, 11(2-3): 193-210.
 %
 % Copyright 2023 Adel
 %
+if nargin < 3
+    basis_function=[];
+end
+
 [x_number,variable_number]=size(X);
 
 % normalize data
@@ -39,8 +41,6 @@ if ~isempty(index__),stdD_Y(index__)=1;end
 X_nomlz=(X-aver_X)./stdD_X;
 Y_nomlz=(Y-aver_Y)./stdD_Y;
 
-c_initial=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
-
 % initialization distance of all X
 X_dis=zeros(x_number,x_number);
 for variable_index=1:variable_number
@@ -48,132 +48,39 @@ for variable_index=1:variable_number
 end
 X_dis=sqrt(X_dis);
 
-% linear kernal function
-basis_function_linear=@(r,c) r+c;
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) ones(x_number,x_number);
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_linear,c,dRM_dc_function);
+c=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
 
-[linear_c_backward,fval_backward,~]=optimalCubicInterp...
-    (object_function,-1e2,-1e2,1e2,1e-3);
-[linear_c_forward,fval_forward,~]=optimalCubicInterp...
-    (object_function,1e2,-1e2,1e2,1e-3);
-if fval_forward < fval_backward
-    c_linear=linear_c_forward;
-else
-    c_linear=linear_c_backward;
-end
-
-% gauss kernal function
+% triple kernal function
 basis_function_gauss=@(r,c) exp(-c*r.^2);
 dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) -X_dis.^2.*rdibas_matrix;
 object_function=@(c) objectFunctionRadiabasis....
     (X_dis,Y_nomlz,x_number,basis_function_gauss,c,dRM_dc_function);
-[c_gauss,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
+[c,~,NFE,~]=optimalCubicInterp...
+    (object_function,c,1e-2,1e2,1e-3);
+basis_function=@(r) basis_function_gauss(r,c);
 
-% spline kernal function
-basis_function_spline=@(r,c) r.^2.*log(r.^2*c+1e-3);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) X_dis.^4./(X_dis.^2*c+1e-3);
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_spline,c,dRM_dc_function);
-[c_spline,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% triple kernal function
-basis_function_triple=@(r,c) (r+c).^3;
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) 3*(X_dis+c).^3;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_triple,c,dRM_dc_function);
-[c_triple,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% multiquadric kernal function
-basis_function_multiquadric=@(r,c) sqrt(r+c);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) 0.5./rdibas_matrix;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_multiquadric,c,dRM_dc_function);
-[c_binomial,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% inverse multiquadric kernal function
-basis_function_inverse_multiquadric=@(r,c) 1./sqrt(r+c);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) -0.5*rdibas_matrix.^3;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_inverse_multiquadric,c,dRM_dc_function);
-
-% c_initial=1;
-% drawFunction(object_function,1e-1,10);
-
-[c_inverse_binomial,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% generate total model
-basis_function_list={
-    @(r) basis_function_linear(r,c_linear);
-    @(r) basis_function_gauss(r,c_gauss);
-    @(r) basis_function_spline(r,c_spline);
-    @(r) basis_function_triple(r,c_triple);
-    @(r) basis_function_multiquadric(r,c_binomial);
-    @(r) basis_function_inverse_multiquadric(r,c_inverse_binomial);};
-c_list=[c_linear;c_gauss;c_spline;c_triple;c_binomial;c_inverse_binomial];
-
-model_number=size(basis_function_list,1);
-beta_list=zeros(x_number,model_number);
-rdibas_matrix_list=zeros(x_number,x_number,model_number);
-inv_rdibas_matrix_list=zeros(x_number,x_number,model_number);
-
-% calculate model matrix and error
-model_error_list=zeros(model_number,x_number);
-for model_index=1:model_number
-    basis_function=basis_function_list{model_index};
-    [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
-        (X_dis,Y_nomlz,basis_function,x_number);
-    beta_list(:,model_index)=beta;
-    rdibas_matrix_list(:,:,model_index)=rdibas_matrix;
-    inv_rdibas_matrix_list(:,:,model_index)=inv_rdibas_matrix;
-    
-    model_error_list(model_index,:)=(beta./...
-        diag(inv_rdibas_matrix))';
-end
-
-% calculate weight of each model
-C=model_error_list*model_error_list';
-eta=trace(C)/x_number;
-I_model=eye(model_number);
-one_model=ones(model_number,1);
-w=(C+eta*I_model)\one_model/...
-    (one_model'*((C+eta*I_model)\one_model));
-while min(w) < -0.05
-    % minimal weight cannot less than zero too much
-    eta=eta*10;
-    w=(C+eta*I_model)\one_model/...
-        (one_model'*((C+eta*I_model)\one_model));
-end
+[beta,rdibas_matrix]=interpRadialBasis...
+    (X_dis,Y_nomlz,basis_function,x_number);
 
 % initialization predict function
-predict_function=@(X_predict) interpEnsemleRadialBasisPredictor...
+predict_function=@(X_predict) interpRadialBasisPredictor...
     (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_number,variable_number,model_number,beta_list,basis_function_list,w);
+    x_number,variable_number,beta,basis_function);
 
-ensemleradialbasis_model.X=X;
-ensemleradialbasis_model.Y=Y;
-ensemleradialbasis_model.X_normalize=X_nomlz;
-ensemleradialbasis_model.Y_normalize=Y_nomlz;
-ensemleradialbasis_model.aver_X=aver_X;
-ensemleradialbasis_model.stdD_X=stdD_X;
-ensemleradialbasis_model.aver_Y=aver_Y;
-ensemleradialbasis_model.stdD_Y=stdD_Y;
+radialbasis_model.X=X;
+radialbasis_model.Y=Y;
+radialbasis_model.X_normalize=X_nomlz;
+radialbasis_model.Y_normalize=Y_nomlz;
+radialbasis_model.radialbasis_matrix=rdibas_matrix;
+radialbasis_model.beta=beta;
 
-ensemleradialbasis_model.basis_function_list=basis_function_list;
-ensemleradialbasis_model.c_list=c_list;
-ensemleradialbasis_model.beta_list=beta_list;
-ensemleradialbasis_model.rdibas_matrix_list=rdibas_matrix_list;
-ensemleradialbasis_model.inv_rdibas_matrix_list=inv_rdibas_matrix_list;
-ensemleradialbasis_model.model_error_list=model_error_list;
-ensemleradialbasis_model.w=w;
+radialbasis_model.aver_X=aver_X;
+radialbasis_model.stdD_X=stdD_X;
+radialbasis_model.aver_Y=aver_Y;
+radialbasis_model.stdD_Y=stdD_Y;
+radialbasis_model.basis_function=basis_function;
 
-ensemleradialbasis_model.predict_function=predict_function;
+radialbasis_model.predict_function=predict_function;
 
 % abbreviation:
 % num: number, pred: predict, vari: variable
@@ -410,10 +317,10 @@ ensemleradialbasis_model.predict_function=predict_function;
         end
     end
 
-    function Y_pred=interpEnsemleRadialBasisPredictor...
+    function [Y_pred]=interpRadialBasisPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,model_number,beta_list,basis_function_list,w)
-        % ensemle radial basis function interpolation predict function
+            x_num,vari_num,beta,basis_function)
+        % radial basis function interpolation predict function
         %
         [x_pred_num,~]=size(X_pred);
 
@@ -427,18 +334,12 @@ ensemleradialbasis_model.predict_function=predict_function;
                 (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
         end
         X_dis_pred=sqrt(X_dis_pred);
-
-        % calculate each sub model predict fval and get predict_y
-        y_pred_nomlz_list=zeros(x_pred_num,model_number);
-        for model_index__=1:model_number
-            basis_function__=basis_function_list{model_index__};
-            beta__=beta_list(:,model_index__);
-            y_pred_nomlz_list(:,model_index__)=basis_function__(X_dis_pred)*beta__;
-        end
-        Y_pred_nomlz=y_pred_nomlz_list*w;
+        
+        % predict variance
+        Y_pred=basis_function(X_dis_pred)*beta;
         
         % normalize data
-        Y_pred=Y_pred_nomlz*stdD_Y+aver_Y;
+        Y_pred=Y_pred*stdD_Y+aver_Y;
     end
 
 end
