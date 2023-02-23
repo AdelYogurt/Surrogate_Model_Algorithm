@@ -1,4 +1,5 @@
 function f=functionG01Object(x)
+% variable_number=13;
 % object_function=@functionG01Object;
 % object_function_low=@functionG01ObjectLow;
 % A=[ 2   2   0   0   0   0   0   0   0   1   1   0   0;
@@ -13,8 +14,8 @@ function f=functionG01Object(x)
 % B=[10;10;10;0;0;0;0;0];
 % Aeq=[];
 % Beq=[];
-% low_bou=zeros(13,1);
-% up_bou=ones(13,1);
+% low_bou=zeros(1,13);
+% up_bou=ones(1,13);
 % up_bou(10:12)=100;
 % nonlcon_function=[];
 %

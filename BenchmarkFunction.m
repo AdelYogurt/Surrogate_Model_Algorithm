@@ -18,14 +18,14 @@ classdef BenchmarkFunction < handle
             %
             % x_best=[-3.6483,-0.0685] fval_best=272.5563
             %
-            x1=x(1);
-            x2=x(2);
-            fval=(x1^2+x2-11)^2+(x2^2+x1+20)^2;
+            x1=x(:,1);
+            x2=x(:,2);
+            fval=(x1.^2+x2-11).^2+(x2.^2+x1+20).^2;
         end
         function fval=single2DObjectLow(self,x)
-            x1=x(1);
-            x2=x(2);
-            fval=self.single2DObject([0.9*x1;0.8*x2])-(x1+1)^2;
+            x1=x(:,1);
+            x2=x(:,2);
+            fval=self.single2DObject([0.9*x1,0.8*x2])-(x1+1).^2;
         end
         function fval=singleA10Object(self,x)
             x=x(:);
@@ -80,56 +80,55 @@ classdef BenchmarkFunction < handle
             fval=sum(sum((x-par').^2-10*cos(2*pi*x)+10));
         end
         function fval=singleDP20Object(self,x)
+            % variable_number=20;
+            % object_function=@(x) benchmark.singleEP20Object(x);
+            % object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=ones(1,variable_number)*-30;
+            % up_bou=ones(1,variable_number)*30;
+            % nonlcon_function=[];
+            % nonlcon_function_LF=[];
+            % cheapcon_function=[];
+            %
+            % x_best=[2.1333,0.5000,2.0000,1.2000,0.4000,0.2000,1.4000,0.3000,1.6000,0.6000,0.8000,1.0000,1.3000,1.9000,0.7000,1.6000,0.3009,1.1214,2.1035,1.1725]
+            % fval_best=0.6667;
+            %
+            x=x(:);
             s=[1.8;0.5;2;1.2;0.4;0.2;1.4;0.3;1.6;0.6;0.8;1;1.3;1.9;0.7;1.6;0.3;1.1;2;1.4];
-            fval=func_G2_DP20_L(x-s);
+            fval=self.singleDP20ObjectLow(x-s);
         end
         function fval=singleDP20ObjectLow(self,x)
+            x=x(:);
             fval=(x(1)-1)^2+sum(linspace(2,20,19)'.*(2*x(2:end).^2-x(1:end-1)).^2);
         end
-        function fval=singleE20Object(self,x)
+        function fval=singleEP20Object(self,x)
+            % variable_number=20;
+            % object_function=@(x) singleEP20Object(x);
+            % object_function_LF=@(x) singleEP20ObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=ones(1,variable_number)*-30;
+            % up_bou=ones(1,variable_number)*30;
+            % nonlcon_function=[];
+            % nonlcon_function_LF=[];
+            % cheapcon_function=[];
+            %
+            % x_best=[1.8000,0.4000,2.0000,1.2000,1.4000,0.6000,1.6000,0.2000,0.8000,1.0000,1.3000,1.1000,2.0000,1.4000,0.5000,0.3000,1.6000,0.7000,0.3000,1.9000]
+            % fval_best=0;
+            %
+            x=x(:);
             ss=[1.8;0.4;2;1.2;1.4;0.6;1.6;0.2;0.8;1;1.3;1.1;2;1.4;0.5;0.3;1.6;0.7;0.3;1.9];
             sh=[0.3;0.4;0.2;0.6;1;0.9;0.2;0.8;0.5;0.7;0.4;0.3;0.7;1;0.9;0.6;0.2;0.8;0.2;0.5];
             fval=sum(linspace(1,20,20)'.*sh.*(x-ss).^2);
         end
-        function fval=singleE20ObjectLow(self,x)
+        function fval=singleEP20ObjectLow(self,x)
+            x=x(:);
             fval=sum(linspace(1,20,20)'.*x.^2);
-        end
-        function fval=singleG01Object(self,x)
-            % object_function=@benchmark.singleG01Object;
-            % object_function_low=@benchmark.singleG01ObjectLow;
-            % A=[ 2   2   0   0   0   0   0   0   0   1   1   0   0;
-            %     2   0   2   0   0   0   0   0   0   1   0   1  0;
-            %     0   2   2   0   0   0   0   0   0   0   1   1  0;
-            %     -8  0   0   0   0   0   0   0   0   1   0   0   0;
-            %     0   -8  0   0   0   0   0   0   0   0   1   0   0;
-            %     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
-            %     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
-            %     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
-            %     ];
-            % B=[10;10;10;0;0;0;0;0];
-            % Aeq=[];
-            % Beq=[];
-            % low_bou=zeros(13,1);
-            % up_bou=ones(13,1);
-            % up_bou(10:12)=100;
-            % nonlcon_function=[];
-            %
-            sigma1=0;
-            for i=1:4
-                sigma1=sigma1+x(i);
-            end
-            sigma2=0;
-            for i=1:4
-                sigma2=sigma2+x(i)^2;
-            end
-            sigma3=0;
-            for i=5:13
-                sigma3=x(i)+sigma3;
-            end
-            fval=5*sigma1-5*sigma2-sigma3;
-        end
-        function fval=singleG01ObjectLow(self,x)
-            fval=self.singleG01Object(x)*0.9+0.5;
         end
         function fval=singleForresterObject(self,x)
             fval=((x.*6-2).^2).*sin(x.*12-4);
@@ -157,15 +156,15 @@ classdef BenchmarkFunction < handle
             % B=[];
             % Aeq=[];
             % Beq=[];
-            % low_bou=[-2;-2];
-            % up_bou=[2;2];
+            % low_bou=[-2,-2];
+            % up_bou=[2,2];
             % nonlcon_function=[];
             % cheapcon_function=[];
             %
-            % x_best=[0;-1] fval_best=3
+            % x_best=[0,-1] fval_best=3
             %
             if (size(x,2) ~= 2)
-                error('singleGPObject: variable must be 2');
+                x=x';
             end
             x1=x(:,1);
             x2=x(:,2);
@@ -225,14 +224,11 @@ classdef BenchmarkFunction < handle
             %
             % x_best=[0.2283,-1.6255], fval_best=-6.5511
             %
-            x1=x(1);
-            x2=x(2);
+            x1=x(:,1);
+            x2=x(:,2);
             fval=3*(1-x1).^2.*exp(-(x1.^2) - (x2+1).^2) ...
                 - 10*(x1/5 - x1.^3 - x2.^5).*exp(-x1.^2-x2.^2) ...
                 - 1/3*exp(-(x1+1).^2 - x2.^2) ;
-        end
-        function fval=singlePloyObject(self,x)
-            fval=520*x.^5-1000*x.^4+585*x.^3-79*x.^2-20*x+4;
         end
         function fval=singleR10Object(self,x)
             fval=sum(100*(x(2:10)-x(1:9).^2).^2+(x(1:9)-1).^2);
@@ -374,9 +370,9 @@ classdef BenchmarkFunction < handle
         end
 
         function [con,coneq]=singleG06Nonlcon(self,x)
-            g1=-(x(1)-5)^2-(x(2)-5)^2+100;
-            g2=(x(1)-6)^2+(x(2)-5)^2-82.81;
-            con=[g1;g2];
+            g1=-(x(:,1)-5).^2-(x(:,2)-5).^2+100;
+            g2=(x(:,1)-6)^2+(x(:,2)-5).^2-82.81;
+            con=[g1,g2];
             coneq=[];
         end
         function [con,coneq]=singleG06NonlconLow(self,x)
@@ -385,13 +381,72 @@ classdef BenchmarkFunction < handle
             coneq=0.9*coneq-0.05;
         end
         function fval=singleG06Object(self,x)
-            fval=(x(1)-10)^3+(x(2)-20)^3;
+            % variable_number=2;
+            % object_function=@(x) benchmark.singleG06Object(x);
+            % object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=[13,0];
+            % up_bou=[100,100];
+            % nonlcon_function=@(x) benchmark.singleG06Object(x);
+            % nonlcon_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+            % cheapcon_function=[];
+            % model_function=[];
+            %
+            % x_best=[14.0950;0.8430] fval_best=-6.9618e+03
+            %
+            fval=(x(:,1)-10).^3+(x(:,2)-20).^3;
         end
         function fval=singleG06ObjectLow(self,x)
-            fval=0.9*singleG06Object(self,x)+0.5;
+            fval=0.9*self.singleG06Object(x)+0.5;
         end
+
+        function fval=singleG01Object(self,x)
+            % object_function=@benchmark.singleG01Object;
+            % object_function_low=@benchmark.singleG01ObjectLow;
+            % A=[ 2   2   0   0   0   0   0   0   0   1   1   0   0;
+            %     2   0   2   0   0   0   0   0   0   1   0   1   0;
+            %     0   2   2   0   0   0   0   0   0   0   1   1   0;
+            %     -8  0   0   0   0   0   0   0   0   1   0   0   0;
+            %     0   -8  0   0   0   0   0   0   0   0   1   0   0;
+            %     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
+            %     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
+            %     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
+            %     ];
+            % B=[10;10;10;0;0;0;0;0];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=zeros(13,1);
+            % up_bou=ones(13,1);
+            % up_bou(10:12)=100;
+            % nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+            % nonlcon_function_LF=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+            % cheapcon_function=[];
+            %
+            % x_best=[1,1,0,1,1,1,1,1,1,3,3,3,1], fval_best=-15;
+            %
+            sigma1=0;
+            for i=1:4
+                sigma1=sigma1+x(i);
+            end
+            sigma2=0;
+            for i=1:4
+                sigma2=sigma2+x(i)^2;
+            end
+            sigma3=0;
+            for i=5:13
+                sigma3=x(i)+sigma3;
+            end
+            fval=5*sigma1-5*sigma2-sigma3;
+        end
+        function fval=singleG01ObjectLow(self,x)
+            fval=self.singleG01Object(x)*0.9+0.5;
+        end
+
     end
-    methods % unconstraint mulit objective function
+    methods % unconstraint multi objective function
         function fval=multiZDT1Object(self,x)
             variable_number=10;
             fval=zeros(2,1);
@@ -414,7 +469,7 @@ classdef BenchmarkFunction < handle
             fval(2)=g*(1-sqrt(x(1)/g)-(x(1)/g)*sin(10*pi*x(1)));
         end
     end
-    methods
+    methods % constraint multi objective function
         function [con,coneq]=multiTNKNonlcon(self,x)
             con=zeros(2,1);
             x1=x(1);
@@ -441,6 +496,11 @@ classdef BenchmarkFunction < handle
             fval=zeros(2,1);
             fval(1)=x(1);
             fval(2)=x(2);
+        end
+    end
+    methods 
+        function getBenchmark(fun_type,fun_name)
+
         end
     end
 end

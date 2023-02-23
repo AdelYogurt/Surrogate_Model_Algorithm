@@ -19,6 +19,10 @@ axes_handle=axes(figure_handle);
 
 x_list=model.X;
 y_list=model.Y;
+if iscell(x_list)
+    x_list=x_list{1};
+    y_list=y_list{1};
+end
 predict_function=model.predict_function;
 
 % get boundary

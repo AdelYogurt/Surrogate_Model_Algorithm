@@ -2,13 +2,13 @@ clc;
 % clear;
 close all hidden;
 
-sample_number=30;
-variable_number=10;
+sample_number=20;
+variable_number=3;
 low_bou=-0*ones(1,variable_number);
 up_bou=1*ones(1,variable_number);
 % x_exist_list=[0.1,0.5,0.3;0.6,0.3,0.6];
 % x_exist_list=[0.1,0.5;0.6,0.3];
-% x_exist_list=[];
+x_exist_list=[];
 
 radius=1;
 
@@ -35,9 +35,9 @@ cheapcon_function=[];
 tic
 [X,X_supply,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,x_exist_list,...
-    low_bou,up_bou,cheapcon_function)
+    low_bou,up_bou,cheapcon_function);
 toc
-scatter(X(:,1),X(:,2))
+line(X(:,1),X(:,2),X(:,3),'linestyle','none','Marker','o','color','b');
 hold on;
 % rectangle('Position',[-radius,-radius,2*radius,2*radius],'Curvature',[1 1])
 
@@ -45,6 +45,14 @@ bou=[low_bou(1:2);up_bou(1:2)];
 axis(bou(:));
 grid on;
 hold off;
+
+tic;
+x_lhs=lhsdesign(sample_number,variable_number,"iterations",800);
+toc;
+
+line(x_lhs(:,1),x_lhs(:,2),x_lhs(:,3),'linestyle','none','Marker','.','color','r');
+
+view(3);
 
 function [X,X_new,distance_min_nomlz]=getLatinHypercube...
     (sample_number,variable_number,X_exist,...
@@ -119,7 +127,7 @@ if ~isempty(cheapcon_function)
         max(max(sample_number*cheapcon_function(x.*(up_bou-low_bou)+low_bou)+1,0),[],1);
 end
 
-pic_num=1;
+% pic_num=1;
 
 iteration=0;
 fval_list=zeros(x_new_number,1);
@@ -148,9 +156,9 @@ while iteration < iteration_max
     
     % change each x place by newton methods
     for x_index=1:x_new_number
-        draw_function=@(x) objectFunctionXPlace...
-            (x,[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
-            sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
+%         draw_function=@(x) objectFunctionXPlace...
+%             (x,[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
+%             sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
 %         drawFunction(draw_function,low_bou_nomlz,up_bou_nomlz);
         
         % get gradient
@@ -273,108 +281,4 @@ X=[X_new;X_exist];
         end
         distance_min__=sqrt(distance_min__);
     end
-end
-
-function [gradient,hessian]=differ(differ_function,x,fval,step)
-% differ function to get gradient and hessian
-%
-variable_number=length(x);
-if nargin < 4
-    step=1e-6;
-end
-if nargin < 3
-    fval=differ_function(x);
-end
-fval__=zeros(variable_number,2); % backward is 1, forward is 2
-gradient=zeros(variable_number,1);
-hessian=zeros(variable_number);
-
-% fval and gradient
-for variable_index__=1:variable_number
-    x_forward__=x;
-    x_backward__=x;
-    x_backward__(variable_index__)=x_backward__(variable_index__)-step;
-    fval__(variable_index__,1)=differ_function(x_backward__);
-    
-    x_forward__(variable_index__)=x_forward__(variable_index__)+step;
-    fval__(variable_index__,2)=differ_function(x_forward__);
-    
-    gradient(variable_index__)=...
-        (fval__(variable_index__,2)-fval__(variable_index__,1))/2/step;
-end
-
-% hessian
-for variable_index__=1:variable_number
-    hessian(variable_index__,variable_index__)=...
-        (fval__(variable_index__,2)-2*fval+fval__(variable_index__,1))/step/step;
-    for variable_index_next__=variable_index__+1:variable_number
-        x_for_for=x;
-        x_for_for(variable_index__)=x_for_for(variable_index__)+step;
-        x_for_for(variable_index_next__)=x_for_for(variable_index_next__)+step;
-        
-        hessian(variable_index__,variable_index_next__)=(...
-            differ_function(x_for_for)-...
-            fval__(variable_index__,2)-fval__(variable_index_next__,2)+...
-            fval...
-            )/step/step;
-        hessian(variable_index_next__,variable_index__)=...
-            hessian(variable_index__,variable_index_next__);
-    end
-end
-end
-function drawFunction(draw_function,low_bou,up_bou,...
-    grid_number,Y_min,Y_max,figure_handle)
-if nargin < 7
-    figure_handle=figure(10);
-    if nargin < 6
-        Y_max=inf;
-        if nargin < 5
-            Y_min=-inf;
-            if nargin < 4
-                grid_number=100;
-            end
-        end
-    end
-end
-low_bou=low_bou(:)';
-up_bou=up_bou(:)';
-
-axes_handle=figure_handle.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(figure_handle);
-end
-axes_context=axes_handle.Children;
-dimension=length(low_bou);
-
-switch dimension
-    case 1
-        d_bou=(up_bou-low_bou)/grid_number;
-        X__=low_bou:d_bou:up_bou;
-        fval__=zeros(grid_number+1,1);
-        for x_index__=1:(grid_number+1)
-            fval__(x_index__)=draw_function(X__(x_index__));
-        end
-        line(axes_handle,X__,fval__);
-        xlabel('X');
-        ylabel('value');
-        
-    case 2
-        d_bou=(up_bou-low_bou)/grid_number;
-        [X__,Y]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        fval__=zeros(grid_number+1,grid_number+1);
-        for x_index__=1:grid_number+1
-            for y_index__=1:grid_number+1
-                predict_x=([x_index__,y_index__]-1).*d_bou+low_bou;
-                fval__(x_index__,y_index__)=draw_function(predict_x);
-            end
-        end
-        fval__(find(fval__ > Y_max))=Y_max;
-        fval__(find(fval__ < Y_min))=Y_min;
-        axes_context=[axes_context;surface(X__',Y',fval__,'FaceAlpha',0.5,'EdgeColor','none');];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
-        zlabel('value');
-        view(3);
-end
 end

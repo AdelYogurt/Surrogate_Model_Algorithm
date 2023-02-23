@@ -2,30 +2,30 @@ clc;
 clear;
 close all hidden;
 
-load('MFK.mat')
-
-K_fold=5;
-
-HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
-HF_check=1:100;
-HF_check(HF_select)=[];
-LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
-
-XHF=matPntHF(HF_select,:);
-YHF=matObjHF(HF_select,1);
-
-XLF=matPntLF1(LF_select,:);
-YLF=matObjLF1(LF_select,1);
-
-[predict_function,MK_model]=interpHieraKrigingPreModel...
-    (XHF, YHF, XLF, YLF);
-
-check_error_list=zeros(size(matPntHF,1)/K_fold,1);
-for check_index=1:(size(matPntHF,1)/K_fold)
-    x_index=HF_check(check_index);
-    check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
-end
-disp(['max error: ',num2str(max(check_error_list))]);
+% load('MFK.mat')
+% 
+% K_fold=5;
+% 
+% HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
+% HF_check=1:100;
+% HF_check(HF_select)=[];
+% LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
+% 
+% XHF=matPntHF(HF_select,:);
+% YHF=matObjHF(HF_select,1);
+% 
+% XLF=matPntLF1(LF_select,:);
+% YLF=matObjLF1(LF_select,1);
+% 
+% [predict_function,MK_model]=interpHieraKrigingPreModel...
+%     (XHF, YHF, XLF, YLF);
+% 
+% check_error_list=zeros(size(matPntHF,1)/K_fold,1);
+% for check_index=1:(size(matPntHF,1)/K_fold)
+%     x_index=HF_check(check_index);
+%     check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
+% end
+% disp(['max error: ',num2str(max(check_error_list))]);
 
 % load('Forrester.mat')
 % [predict_function_HK,HK_model]=interpHieraKrigingPreModel...
@@ -39,9 +39,12 @@ disp(['max error: ',num2str(max(check_error_list))]);
 % line(x,y,'Color','b','LineStyle','--');
 % legend({'singleForresterObject','singleForresterObjectLow','HK','K'})
 
-function [predict_function,HK_model]=interpHieraKrigingPreModel...
-    (XHF,YHF,XLF,YLF,hyp)
-% construct Hierarchical Kriging version 1
+load('2DMF.mat');
+[predict_function_HK,HK_model]=interpHieraKrigingPreModel(XHF,YHF,[],XLF,YLF,[]);
+interpVisualize(HK_model,low_bou,up_bou);
+
+function [predict_function,HK_model]=interpHieraKrigingPreModel(varargin)
+% construct Hierarchical Kriging model
 % XHF, YHF are x_HF_number x variable_number matrix
 % XLF, YLF are x_LF_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_HF_number matrix
@@ -50,11 +53,11 @@ function [predict_function,HK_model]=interpHieraKrigingPreModel...
 % notice theta=exp(hyp)
 %
 % input:
-% XHF, YHF, XLF, YLF, hyp(hyp_HF, hyp_LF)
+% XHF, YHF, hyp_HF(can be []), XLF, YLF, hyp_LF(can be [])
+% XHF, YHF, hyp_HF(can be []), LF_model
 %
 % output:
-% kriging model (predict_function,
-% XHF, YHF, XLF, YLF, base_function_list)
+% predict_function,HK_model
 %
 % reference: [1] HAN Z-H, GöRTZ S. Hierarchical Kriging Model for
 % Variable-Fidelity Surrogate Modeling [J]. AIAA Journal, 2012, 50(9):
@@ -62,33 +65,130 @@ function [predict_function,HK_model]=interpHieraKrigingPreModel...
 %
 % Copyright 2023.2 Adel
 %
-X=[XHF;XLF];
-Y=[YHF;YLF];
-[x_number,variable_number]=size(X);
-x_HF_number=size(XHF,1);
-x_LF_number=size(XLF,1);
-if nargin < 5
-    hyp=ones(1,2*variable_number);
+XHF=varargin{1};
+YHF=varargin{2};
+[x_HF_number,variable_number]=size(XHF);
+switch nargin
+    case 4
+        hyp_HF=varargin{3};
+        LF_model=varargin{4};
+
+        % check whether LF model exist predict_function
+        if ~isfield(LF_model,'predict_function')
+            error('interpHieraKrigingPreModel: low fidelity lack predict function');
+        end
+    case 6
+        hyp_HF=varargin{3};
+        XLF=varargin{4};
+        YLF=varargin{5};
+        hyp_LF=varargin{6};
+
+        [x_LF_number,variable_number]=size(XLF);
+
+        if isempty(hyp_LF)
+            hyp_LF=ones(1,variable_number);
+        end
+
+        % first step
+        % construct low fidelity model
+
+        % normalize data
+        aver_X=mean(XLF);
+        stdD_X=std(XLF);
+        aver_Y=mean(YLF);
+        stdD_Y=std(YLF);
+        index__=find(stdD_X == 0);
+        if  ~isempty(index__),  stdD_X(index__)=1; end
+        index__=find(stdD_Y == 0);
+        if  ~isempty(index__),  stdD_Y(index__)=1; end
+
+        XLF_nomlz=(XLF-aver_X)./stdD_X;
+        YLF_nomlz=(YLF-aver_Y)./stdD_Y;
+
+        % initial X_dis_sq
+        XLF_dis_sq=zeros(x_LF_number,x_LF_number,variable_number);
+        for variable_index=1:variable_number
+            XLF_dis_sq(:,:,variable_index)=...
+                (XLF_nomlz(:,variable_index)-XLF_nomlz(:,variable_index)').^2;
+        end
+
+        % regression function define
+        % notice reg_function process no normalization data
+        % reg_function=@(X) regZero(X);
+        reg_function=@(X) regLinear(X);
+
+        % calculate reg
+        fval_reg_LF=reg_function(XLF);
+        fval_reg_nomlz_LF=(fval_reg_LF-aver_Y)./stdD_Y;
+
+        % optimal to get hyperparameter
+        low_bou_hyp=-4*ones(1,variable_number);
+        up_bou_hyp=4*ones(1,variable_number);
+        fmincon_option=optimoptions('fmincon','Display','none',...
+            'OptimalityTolerance',1e-2,...
+            'FiniteDifferenceStepSize',1e-5,...,
+            'MaxIterations',10,'SpecifyObjectiveGradient',true);
+        object_function_hyp=@(hyp) objectNLLKriging...
+            (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,hyp,fval_reg_nomlz_LF);
+
+        % [fval,gradient]=object_function_hyp(hyp_LF)
+        % [~,gradient_differ]=differ(object_function_hyp,hyp_LF)
+
+        hyp_LF=fmincon...
+            (object_function_hyp,hyp_LF,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
+
+        % get parameter
+        [cov_LF,inv_cov_LF,beta_LF,sigma_sq_LF]=interpKriging...
+            (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,exp(hyp_LF),fval_reg_nomlz_LF);
+        gama_LF=inv_cov_LF*(YLF_nomlz-fval_reg_nomlz_LF*beta_LF);
+        FTRF_LF=fval_reg_nomlz_LF'*inv_cov_LF*fval_reg_nomlz_LF;
+
+        % initialization predict function
+        predict_function_LF=@(X_predict) interpKrigingPredictor...
+            (X_predict,XLF_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_LF_number,variable_number,exp(hyp_LF),beta_LF,gama_LF,sigma_sq_LF,...
+            inv_cov_LF,fval_reg_nomlz_LF,FTRF_LF,reg_function);
+
+        LF_model.X=XLF;
+        LF_model.Y=YLF;
+        LF_model.fval_regression=fval_reg_LF;
+        LF_model.covariance=cov_LF;
+        LF_model.inv_covariance=inv_cov_LF;
+
+        LF_model.hyp=hyp_LF;
+        LF_model.beta=beta_LF;
+        LF_model.gama=gama_LF;
+        LF_model.sigma_sq=sigma_sq_LF;
+        LF_model.aver_X=aver_X;
+        LF_model.stdD_X=stdD_X;
+        LF_model.aver_Y=aver_Y;
+        LF_model.stdD_Y=stdD_Y;
+
+        LF_model.predict_function=predict_function_LF;
+    otherwise
+        error('interpHieraKrigingPreModel: error input');
 end
-hyp_LF=hyp((variable_number+1):end);
-hyp_HF=hyp(1:variable_number);
+HK_model.LF_model=LF_model;
+
+% second step
+% construct hierarchical model
+if isempty(hyp_HF)
+    hyp_HF=ones(1,variable_number);
+end
+
+predict_function_LF=LF_model.predict_function;
 
 % normalize data
-aver_X=mean(X);
-stdD_X=std(X);
-aver_Y=mean(Y);
-stdD_Y=std(Y);
+aver_X=mean(XHF);
+stdD_X=std(XHF);
+aver_Y=mean(YHF);
+stdD_Y=std(YHF);
 index__=find(stdD_X == 0);
 if  ~isempty(index__),  stdD_X(index__)=1; end
 index__=find(stdD_Y == 0);
 if  ~isempty(index__),  stdD_Y(index__)=1; end
 XHF_nomlz=(XHF-aver_X)./stdD_X;
 YHF_nomlz=(YHF-aver_Y)./stdD_Y;
-XLF_nomlz=(XLF-aver_X)./stdD_X;
-YLF_nomlz=(YLF-aver_Y)./stdD_Y;
-
-% first step
-% construct low fidelity model
 
 % initial X_dis_sq
 XHF_dis_sq=zeros(x_HF_number,x_HF_number,variable_number);
@@ -96,56 +196,13 @@ for variable_index=1:variable_number
     XHF_dis_sq(:,:,variable_index)=...
         (XHF_nomlz(:,variable_index)-XHF_nomlz(:,variable_index)').^2;
 end
-XLF_dis_sq=zeros(x_LF_number,x_LF_number,variable_number);
-for variable_index=1:variable_number
-    XLF_dis_sq(:,:,variable_index)=...
-        (XLF_nomlz(:,variable_index)-XLF_nomlz(:,variable_index)').^2;
-end
-
-% regression function define
-% notice reg_function process no normalization data
-% reg_function=@(X) regZero(X);
-reg_function=@(X) regLinear(X);
-
-% calculate reg
-fval_reg_nomlz_LF=(reg_function(XLF)-aver_Y)./stdD_Y;
-
-% optimal to get hyperparameter
-low_bou_hyp=-4*ones(1,variable_number);
-up_bou_hyp=4*ones(1,variable_number);
-fmincon_option=optimoptions('fmincon','Display','none',...
-    'OptimalityTolerance',1e-2,...
-    'FiniteDifferenceStepSize',1e-5,...,
-    'MaxIterations',10,'SpecifyObjectiveGradient',true);
-object_function_hyp=@(hyp) objectNLLKriging...
-    (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,hyp,fval_reg_nomlz_LF);
-
-% [fval,gradient]=object_function_hyp(hyp_LF)
-% [~,gradient_differ]=differ(object_function_hyp,hyp_LF)
-
-hyp_LF=fmincon...
-    (object_function_hyp,hyp_LF,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
-
-% get parameter
-[cov_LF,inv_cov_LF,beta_LF,sigma_sq_LF]=interpKriging...
-    (XLF_dis_sq,YLF_nomlz,x_LF_number,variable_number,exp(hyp_LF),fval_reg_nomlz_LF);
-gama_LF=inv_cov_LF*(YLF_nomlz-fval_reg_nomlz_LF*beta_LF);
-FTRF_LF=fval_reg_nomlz_LF'*inv_cov_LF*fval_reg_nomlz_LF;
-
-% initialization predict function
-predict_function_LF=@(X_predict) interpKrigingPredictor...
-    (X_predict,XLF_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_LF_number,variable_number,exp(hyp_LF),beta_LF,gama_LF,sigma_sq_LF,...
-    inv_cov_LF,fval_reg_nomlz_LF,FTRF_LF,reg_function);
-
-% second step
-% construct hierarchical model
 
 % evaluate low fidelty predict value in high fidelity point as base fval
 reg_function=@(X) predict_function_LF(X);
 
 % calculate reg
-fval_reg_nomlz_HF=(reg_function(XHF)-aver_Y)./stdD_Y;
+fval_reg_HF=reg_function(XHF);
+fval_reg_nomlz_HF=(fval_reg_HF-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
 object_function_hyp=@(hyp) objectNLLKriging...
@@ -171,19 +228,17 @@ predict_function=@(X_predict) interpKrigingPredictor...
     x_HF_number,variable_number,exp(hyp_HF),beta_HF,gama_HF,sigma_sq_HF,...
     inv_cov_HF,fval_reg_nomlz_HF,FTRF_HF,reg_function);
 
-HK_model.X=XHF;
-HK_model.Y=YHF;
-HK_model.XHF=XHF;
-HK_model.YHF=YHF;
-HK_model.XLF=XLF;
-HK_model.YLF=YLF;
-HK_model.cov_LF=cov_LF;
-HK_model.inv_cov_LF=inv_cov_LF;
-HK_model.cov_HF=cov_HF;
-HK_model.inv_cov_HF=inv_cov_HF;
+HK_model.X={XHF,XLF};
+HK_model.Y={YHF,YLF};
+HK_model.fval_regression=fval_reg_HF;
+HK_model.covariance=cov_HF;
+HK_model.inv_covariance=inv_cov_HF;
 
-hyp=[hyp_HF,hyp_LF];
-HK_model.hyp=hyp;
+HK_model.hyp=hyp_HF;
+HK_model.beta=beta_HF;
+HK_model.gama=gama_HF;
+HK_model.sigma_sq=sigma_sq_HF;
+
 HK_model.aver_X=aver_X;
 HK_model.stdD_X=stdD_X;
 HK_model.aver_Y=aver_Y;
@@ -310,7 +365,7 @@ end
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
     (X,Y,hyp)
-% version 7, nomalization method is grassian
+% nomalization method is grassian
 % add multi x_predict input support
 % prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
@@ -351,8 +406,8 @@ end
 
 % regression function define
 % notice reg_function process no normalization data
-reg_function=@(X) regZero(X);
-% reg_function=@(X) regLinear(X);
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
 
 % calculate reg
 fval_reg_nomlz=(reg_function(X)-0)./1;
@@ -389,8 +444,6 @@ predict_function=@(X_predict) interpKrigingPredictor...
 
 kriging_model.X=X;
 kriging_model.Y=Y;
-kriging_model.X_normalize=X_nomlz;
-kriging_model.Y_normalize=Y_nomlz;
 kriging_model.fval_regression=fval_reg_nomlz;
 kriging_model.covariance=covariance;
 kriging_model.inv_covariance=inv_covariance;

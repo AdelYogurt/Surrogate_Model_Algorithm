@@ -99,7 +99,7 @@ end
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
     (X,Y,hyp)
-% version 7, nomalization method is grassian
+% nomalization method is grassian
 % add multi x_predict input support
 % prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
@@ -140,8 +140,8 @@ end
 
 % regression function define
 % notice reg_function process no normalization data
-reg_function=@(X) regZero(X);
-% reg_function=@(X) regLinear(X);
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
 
 % calculate reg
 fval_reg_nomlz=(reg_function(X)-0)./1;

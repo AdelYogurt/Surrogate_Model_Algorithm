@@ -46,7 +46,7 @@ interpVisualize(kriging_model,low_bou,up_bou,figure_handle)
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
     (X,Y,hyp)
-% version 7, nomalization method is grassian
+% nomalization method is grassian
 % add multi x_predict input support
 % prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
@@ -87,8 +87,8 @@ end
 
 % regression function define
 % notice reg_function process no normalization data
-reg_function=@(X) regZero(X);
-% reg_function=@(X) regLinear(X);
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
 
 % calculate reg
 fval_reg_nomlz=(reg_function(X)-0)./1;
@@ -125,8 +125,6 @@ predict_function=@(X_predict) interpKrigingPredictor...
 
 kriging_model.X=X;
 kriging_model.Y=Y;
-kriging_model.X_normalize=X_nomlz;
-kriging_model.Y_normalize=Y_nomlz;
 kriging_model.fval_regression=fval_reg_nomlz;
 kriging_model.covariance=covariance;
 kriging_model.inv_covariance=inv_covariance;

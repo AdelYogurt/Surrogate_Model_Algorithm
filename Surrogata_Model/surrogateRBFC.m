@@ -69,8 +69,6 @@ predict_function=@(X_predict) interpRadialBasisPredictor...
 
 radialbasis_model.X=X;
 radialbasis_model.Y=Y;
-radialbasis_model.X_normalize=X_nomlz;
-radialbasis_model.Y_normalize=Y_nomlz;
 radialbasis_model.radialbasis_matrix=rdibas_matrix;
 radialbasis_model.beta=beta;
 

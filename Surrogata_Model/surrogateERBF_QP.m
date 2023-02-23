@@ -3,12 +3,12 @@ clear;
 close all hidden;
 
 load('PK.mat');
-ensemleradialbasis_model=surrogateEnsemleRadialBasisPreModel...
+[predict_function,ensemleradialbasis_model]=interpEnsemleRadialBasisPreModel...
     (X,Y);
 figure_handle=figure(1);
 interpVisualize(ensemleradialbasis_model,low_bou,up_bou,figure_handle)
 
-function ensemleradialbasis_model=surrogateEnsemleRadialBasisPreModel...
+function [predict_function,ensemleradialbasis_model]=interpEnsemleRadialBasisPreModel...
     (X,Y)
 % get ensemle radial basis function interpolation model function
 % using quadratic programming to calculate weigth of each sub model
@@ -158,8 +158,6 @@ predict_function=@(X_predict) interpEnsemleRadialBasisPredictor...
 
 ensemleradialbasis_model.X=X;
 ensemleradialbasis_model.Y=Y;
-ensemleradialbasis_model.X_normalize=X_nomlz;
-ensemleradialbasis_model.Y_normalize=Y_nomlz;
 ensemleradialbasis_model.aver_X=aver_X;
 ensemleradialbasis_model.stdD_X=stdD_X;
 ensemleradialbasis_model.aver_Y=aver_Y;

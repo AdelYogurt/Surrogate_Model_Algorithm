@@ -2,30 +2,30 @@ clc;
 clear;
 close all hidden;
 
-load('MFK.mat')
+% load('MFK.mat')
 
-K_fold=5;
-
-HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
-HF_check=1:100;
-HF_check(HF_select)=[];
-LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
-
-XHF=matPntHF(HF_select,:);
-YHF=matObjHF(HF_select,1);
-
-XLF=matPntLF1(LF_select,:);
-YLF=matObjLF1(LF_select,1);
-
-[predict_function,MK_model]=interpCoKrigingPreModel...
-    (XHF, YHF, XLF, YLF);
-
-check_error_list=zeros(size(matPntHF,1)/K_fold,1);
-for check_index=1:(size(matPntHF,1)/K_fold)
-    x_index=HF_check(check_index);
-    check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
-end
-disp(['max error: ',num2str(max(check_error_list))]);
+% K_fold=5;
+% 
+% HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
+% HF_check=1:100;
+% HF_check(HF_select)=[];
+% LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
+% 
+% XHF=matPntHF(HF_select,:);
+% YHF=matObjHF(HF_select,1);
+% 
+% XLF=matPntLF1(LF_select,:);
+% YLF=matObjLF1(LF_select,1);
+% 
+% [predict_function,MK_model]=interpCoKrigingPreModel...
+%     (XHF, YHF, XLF, YLF);
+% 
+% check_error_list=zeros(size(matPntHF,1)/K_fold,1);
+% for check_index=1:(size(matPntHF,1)/K_fold)
+%     x_index=HF_check(check_index);
+%     check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
+% end
+% disp(['max error: ',num2str(max(check_error_list))]);
 
 % load('Forrester.mat')
 % [predict_function_CK,CK_model]=interpCoKrigingPreModel...
@@ -38,6 +38,10 @@ disp(['max error: ',num2str(max(check_error_list))]);
 % line(x,y_CK,'Color','b','LineStyle','-')
 % line(x,y,'Color','b','LineStyle','--');
 % legend({'singleForresterObject','singleForresterObjectLow','HK','K'})
+
+load('2DMF.mat');
+[predict_function_HK,HK_model]=interpCoKrigingPreModel(XHF,YHF,XLF,YLF,[]);
+interpVisualize(HK_model,low_bou,up_bou);
 
 function [predict_function,CK_model]=interpCoKrigingPreModel...
     (XHF,YHF,XLF,YLF,hyp)
@@ -68,7 +72,7 @@ Y=[YHF;YLF];
 [x_number,variable_number]=size(X);
 x_HF_number=size(XHF,1);
 x_LF_number=size(XLF,1);
-if nargin < 5
+if nargin < 5 || isempty(hyp)
     hyp=10*ones(1,2*variable_number+1);
 end
 hyp_d=hyp(1:variable_number+1);
@@ -199,8 +203,8 @@ predict_function=@(X_pred) interpCoKrigingPredictor...
     x_number,variable_number,x_HF_number,exp(hyp_d(1:variable_number)),exp(hyp_d(end)),exp(hyp_LF),beta,gama,sigma_sq_d,sigma_sq_LF,...
     inv_covariance,reg_function);
 
-CK_model.X=XHF;
-CK_model.Y=YHF;
+CK_model.X={XHF,XLF};
+CK_model.Y={YHF,YLF};
 CK_model.XHF=XHF;
 CK_model.YHF=YHF;
 CK_model.XLF=XLF;
@@ -496,7 +500,7 @@ end
 
 function [predict_function,kriging_model]=interpKrigingPreModel...
     (X,Y,hyp)
-% version 7, nomalization method is grassian
+% nomalization method is grassian
 % add multi x_predict input support
 % prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
@@ -537,8 +541,8 @@ end
 
 % regression function define
 % notice reg_function process no normalization data
-reg_function=@(X) regZero(X);
-% reg_function=@(X) regLinear(X);
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
 
 % calculate reg
 fval_reg_nomlz=(reg_function(X)-0)./1;

@@ -6,8 +6,8 @@ function fval=functionDP20ObjectLow(x)
 % B=[];
 % Aeq=[];
 % Beq=[];
-% low_bou=ones(variable_number,1)*-30;
-% up_bou=ones(variable_number,1)*30;
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
 % nonlcon_function=[];
 % cheapcon_function=[];
 %

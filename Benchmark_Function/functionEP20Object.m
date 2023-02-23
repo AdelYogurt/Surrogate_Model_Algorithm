@@ -1,13 +1,13 @@
-function fval=functionE20Object(x)
+function fval=functionEP20Object(x)
 % variable_number=20;
-% object_function=@(x) functionE20Object(x);
-% object_function_low=@(x) functionE20ObjectLow(x);
+% object_function=@(x) functionEP20Object(x);
+% object_function_low=@(x) functionEP20ObjectLow(x);
 % A=[];
 % B=[];
 % Aeq=[];
 % Beq=[];
-% low_bou=ones(variable_number,1)*-30;
-% up_bou=ones(variable_number,1)*30;
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
 % nonlcon_function=[];
 % cheapcon_function=[];
 %

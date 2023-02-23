@@ -2,27 +2,29 @@ clc;
 clear;
 close all hidden;
 
-variable_number=2;
-object_function=@(x) functionPKObject(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=-3*ones(variable_number,1);
-up_bou=3*ones(variable_number,1);
-nonlcon_function=[];
-cheapcon_function=[];
+benchmark=BenchmarkFunction();
 
 % variable_number=2;
-% object_function=@(x) functionGPObject(x);
+% object_function=@(x) functionPKObject(x);
 % A=[];
 % B=[];
 % Aeq=[];
 % Beq=[];
-% low_bou=[-2;-2];
-% up_bou=[2;2];
+% low_bou=-3*ones(variable_number,1);
+% up_bou=3*ones(variable_number,1);
 % nonlcon_function=[];
 % cheapcon_function=[];
+
+variable_number=2;
+object_function=@(x) benchmark.singleGPObject(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2;-2];
+up_bou=[2;2];
+nonlcon_function=[];
+cheapcon_function=[];
 
 % variable_number=2;
 % object_function=@functionG06Object;
@@ -124,10 +126,9 @@ cheapcon_function=[];
 % cheapcon_function=@nonlcon_ICE;
 
 % x_initial=rand(variable_number,1).*(up_bou-low_bou)+low_bou;
-% [x_best,fval_best]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function)
+% [x_best,fval_best,~,output]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,optimoptions('fmincon','Algorithm','sqp'))
 
-
-data_library_name='optimalSurrogate_PRS_TR_result.txt';
+data_library_name='optimal_data_library.txt';
 delete(data_library_name);
 delete('result_total.txt');
 [x_best,fval_best,NFE,output]=optimalSurrogatePRSTR...
@@ -159,48 +160,6 @@ zlabel('Z');
 %     fval_best_list(repeat_index,1)=fval_best;
 % end
 % boxplot(fval_best_list);
-
-function [con,coneq]=cheapconFunction(x,A,B,Aeq,Beq,cheapcon_function)
-% convert A, B, Aeq, Beq to total cheapcon function
-%
-if nargin < 6
-    cheapcon_function=[];
-    if nargin < 5
-        Beq=[];
-        if nargin < 4
-            Aeq=[];
-            if nargin < 3
-                B=[];
-                if nargin < 2
-                    A=[];
-                end
-            end
-        end
-    end
-end
-x=x(:);
-con=[];
-coneq=[];
-if ~isempty(A)
-    if isempty(B)
-        con=[con;A*x];
-    else
-        con=[con;A*x-B];
-    end
-end
-if ~isempty(Aeq)
-    if isempty(Beq)
-        coneq=[coneq;Aeq*x];
-    else
-        coneq=[coneq;Aeq*x-Beq];
-    end
-end
-if ~isempty(cheapcon_function)
-    [lincon,linconeq]=cheapcon_function(x);
-    con=[con;lincon];
-    coneq=[coneq;linconeq];
-end
-end
 
 function [x_best,fval_best,NFE,output]=optimalSurrogatePRSTR...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
@@ -247,8 +206,8 @@ if ~isempty(cheapcon_function)
     end
 end
 DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=0; % whether print data
-CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
+INFORMATION_FLAG=1; % whether print data
+CONVERGENCE_JUDGMENT_FLAG=1; % whether judgment convergence
 
 % parameter
 enlarge_range=2; % adapt region enlarge parameter
@@ -264,7 +223,7 @@ gama=2;
 
 sample_number=(variable_number+1)*(variable_number+2)/2; % Latin hypercube sample count
 
-data_library_name='optimalSurrogate_PRS_TR_result.txt';
+data_library_name='optimal_data_library.txt';
 file_result = fopen('result_total.txt','a');
 fprintf(file_result,'%s\n',datetime);
 fclose(file_result);

@@ -15,7 +15,10 @@ if nargin < 4
     end
 end
 
-axes_handle=axes(figure_handle);
+axes_handle=figure_handle.CurrentAxes;
+if isempty(axes_handle)
+    axes_handle=axes(figure_handle);
+end
 
 x_list=model.X;
 y_list=model.Y;

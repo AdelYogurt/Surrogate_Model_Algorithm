@@ -4,16 +4,16 @@ close all hidden;
 
 benchmark=BenchmarkFunction();
 
-% variable_number=2;
-% object_function=@(x) benchmark.singleGPObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-2,-2];
-% up_bou=[2,2];
-% nonlcon_function=[];
-% cheapcon_function=[];
+variable_number=2;
+object_function=@(x) benchmark.singleGPObject(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2,-2];
+up_bou=[2,2];
+nonlcon_function=[];
+cheapcon_function=[];
 
 % variable_number=2;
 % object_function=@(x) benchmark.singlePKObject(x);
@@ -26,17 +26,17 @@ benchmark=BenchmarkFunction();
 % nonlcon_function=[];
 % cheapcon_function=[];
 
-variable_number=6;
-object_function=@(x) benchmark.singleHNObject(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=zeros(1,variable_number);
-up_bou=ones(1,variable_number);
-nonlcon_function=[];
-cheapcon_function=[];
-model_function=[];
+% variable_number=6;
+% object_function=@(x) benchmark.singleHNObject(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=zeros(1,variable_number);
+% up_bou=ones(1,variable_number);
+% nonlcon_function=[];
+% cheapcon_function=[];
+% model_function=[];
 
 % variable_number=20;
 % object_function=@(x) benchmark.singleDP20Object(x);
@@ -252,6 +252,15 @@ end
 [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
     (data_library_name,low_bou,up_bou);
 
+% initialization hyper parameter
+kriging_model_fval=[];
+kriging_model_con=[];
+kriging_model_coneq=[];
+hyp_GPC.means=0;
+hyp_GPC.means=zeros(1,variable_number);
+hyp_GPC.lik=[];
+low_bou_ISR=low_bou;
+up_bou_ISR=up_bou;
 while ~done
     % step 3
     % updata data library by x_list
@@ -291,28 +300,24 @@ while ~done
     %     object_function_surrogate=output_ERBF.object_function_surrogate;
     %     nonlcon_function_surrogate=output_ERBF.nonlcon_function_surrogate;
     
-    [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output_radialbasis]=getRadialBasisModel...
-        (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
+    [kriging_model_fval,kriging_model_con,kriging_model_coneq,output_radialbasis]=getKrigingModel...
+        (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
+        kriging_model_fval,kriging_model_con,kriging_model_coneq);
     object_function_surrogate=output_radialbasis.object_function_surrogate;
     nonlcon_function_surrogate=output_radialbasis.nonlcon_function_surrogate;
 
     % step 5
     % MSP guideline to obtain x_adapt
-    if expensive_nonlcon_flag
-        nonlcon_torlance_surrogate=min(max(con_nomlz_list,[],2))*(1-NFE/NFE_max)^2;
-    else
-        nonlcon_torlance_surrogate=0;
-    end
     [x_potential,~,exitflag,~]=findMinMSP...
-        (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
-        cheapcon_function,nonlcon_torlance_surrogate);
+        (object_function_surrogate,variable_number,low_bou_ISR,up_bou_ISR,nonlcon_function_surrogate,...
+        cheapcon_function,nonlcon_torlance);
     
     if exitflag == -2
         % optimal feasiblilty if do not exist feasible point
         object_nonlcon_function_surrogate=@(x) objectNonlconFunctionSurrogate(x,nonlcon_function_surrogate);
         [x_potential,~,exitflag,~]=findMinMSP...
             (object_nonlcon_function_surrogate,variable_number,low_bou,up_bou,[],...
-            cheapcon_function,nonlcon_torlance_surrogate);
+            cheapcon_function,nonlcon_torlance);
     end
     
     % check x_potential if exist in data library
@@ -360,7 +365,7 @@ while ~done
     end
     
     if DRAW_FIGURE_FLAG && variable_number < 3
-        interpVisualize(radialbasis_model_fval,low_bou,up_bou);
+        interpVisualize(kriging_model_fval,low_bou,up_bou);
         line(x_potential(1),x_potential(2),fval_potential/fval_max*10,'Marker','o','color','r','LineStyle','none')
     end
     
@@ -479,30 +484,18 @@ while ~done
         fval_label(feasible_index_list)=1;
         
         % use filter and train SVM
-        kernel_function_SVM=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*scale_SVM);
-        [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-            (x_list,fval_label,penalty_SVM,low_bou,up_bou,kernel_function_SVM);
+        [GPC_predict_function,GPC_model]=classifyGaussProcess...
+            (x_list,fval_label,hyp_GPC);
         if DRAW_FIGURE_FLAG && variable_number < 3
-            classifySupportVectorMachineVisualization...
-                (SVM_model,[13;0],[15;2]);
+            classifyVisualization...
+                (GPC_model);
         end
         
         % get data to obtain clustering center
-        x_sup_list=[];
-        for x_index=1:sample_number_data
-            if  SVM_predict_function(x_data_list(x_index,:)')==1
-                x_sup_list=[x_sup_list;x_data_list(x_index,:)];
-            end
-        end
+        x_index_list=GPC_predict_function(x_data_list) == 1;
+        x_sup_list=[x_data_list(x_index_list,:)];
         
         if isempty(x_sup_list)
-            % updata SVM parameter
-            if scale_SVM < 1e3
-                scale_SVM=scale_SVM*sqrt(10);
-            elseif penalty_SVM < 1e3
-                penalty_SVM=penalty_SVM*sqrt(10);
-            end
-            
             % no center found use filter point
             if isempty(feasible_index_list)
                 if ~isempty(con_nomlz_list)
@@ -525,7 +518,7 @@ while ~done
         end
     else
         % interset sampling
-        delta_add=0.1;
+%         delta_add=0.1;
 %         fval_thresh=min(fval_list)+(eta-delta_add)*(max(fval_list)-min(fval_list));
         fval_sort=sort(fval_list);
         index=floor(size(fval_list,1)/2);
@@ -544,20 +537,17 @@ while ~done
                     fval_label(x_index)=0;
                 end
             end
-
-            % step 7-2
-            % get a large number of x point, use SVM to predict x point
-            [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-                (x_list,fval_label,penalty_SVM,low_bou,up_bou);
-            if DRAW_FIGURE_FLAG && variable_number < 3
-                classifyVisualization...
-                    (SVM_model,low_bou,up_bou);
-            end
-            for x_index=1:sample_number_data
-                if  SVM_predict_function(x_data_list(x_index,:)')==1
-                    x_sup_list=[x_sup_list;x_data_list(x_index,:)];
+            
+                % step 7-2
+                % get a large number of x point, use SVM to predict x point
+                [GPC_predict_function,GPC_model]=classifyGaussProcess...
+                    (x_list,fval_label,hyp_GPC);
+                if DRAW_FIGURE_FLAG && variable_number < 3
+                    classifyVisualization...
+                        (GPC_model,low_bou,up_bou);
                 end
-            end
+                x_index_list=GPC_predict_function(x_data_list) == 1;
+                x_sup_list=[x_sup_list;x_data_list(x_index_list,:)];
         end
     end
     
@@ -810,6 +800,77 @@ else
 end
 end
 
+function [x_best,fval_best,exitflag,output,LCB_function]=findMinLCB...
+    (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
+    cheapcon_function,nonlcon_torlance)
+% find min fval use LCB guideline
+% LCB: object_funtion is ...
+% object_function (generate by surrogate model)...
+% subtract sqrt(object_var_function(x)) (generate by surrogate model)
+% nonlcon_function generate by surrogate model
+% use ga as optimal method
+%
+w=1;
+
+% obtian total constraint function
+if ~isempty(nonlcon_function_surrogate) || ~isempty(cheapcon_function)
+    constraint_function=@(x) totalconFunction...
+        (x,nonlcon_function_surrogate,cheapcon_function,nonlcon_torlance);
+else
+    constraint_function=[];
+end
+
+% generate initial population for ga
+population_matrix=zeros(2*variable_number,variable_number);
+for population_index=1:2*variable_number
+    x=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
+    if ~isempty(cheapcon_function)
+        [con,coneq]=cheapcon_function(x);
+        while sum(~(con < 0))
+            x=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
+            [con,coneq]=cheapcon_function(x);
+        end
+    end
+    population_matrix(population_index,:)=x;
+end
+
+% optiaml
+ga_option=optimoptions('ga','FunctionTolerance', 1e-2,...
+    'PopulationSize',max(10,2*variable_number),...
+    'MaxGenerations',50,'InitialPopulationMatrix',population_matrix,...
+    'display','none');
+
+LCB_function=@(x) LCBFunction(object_function_surrogate,x,w);
+[x_best,fval_best,exitflag,output]=ga...
+    (LCB_function,variable_number,[],[],[],[],low_bou,up_bou,constraint_function,ga_option);
+fmincon_option=optimoptions('fmincon','FunctionTolerance',1e-6,'ConstraintTolerance',1e-6,...
+    'algorithm','sqp',....
+    'display','none');
+[x_best,fval_best,exitflag,output]=fmincon...
+    (object_function_surrogate,x_best,[],[],[],[],low_bou,up_bou,constraint_function,fmincon_option);
+
+
+    function lcb=LCBFunction(object_function_surrogate,x,w)
+        [fval,variance]=object_function_surrogate(x);
+        lcb=fval-w*variance;
+    end
+    function [con,coneq]=totalconFunction...
+            (x,nonlcon_function,cheapcon_function,nonlcon_torlance)
+        con=[];
+        coneq=[];
+        if ~isempty(nonlcon_function)
+            [expencon,expenconeq]=nonlcon_function(x);
+            con=[con;expencon-nonlcon_torlance];
+            coneq=[coneq;expenconeq-nonlcon_torlance];
+        end
+        if ~isempty(cheapcon_function)
+            [expencon,expenconeq]=cheapcon_function(x);
+            con=[con;expencon];
+            coneq=[coneq;expenconeq];
+        end
+    end
+end
+
 %% FCM
 function FC_model=classifyFuzzyClustering...
     (X,classify_number,low_bou,up_bou,m)
@@ -922,235 +983,563 @@ FC_model.x_class_list=x_class_list;
 
 end
 
-%% SVM
-function [predict_function,SVM_model]=classifySupportVectorMachine...
-    (X,Class,C,low_bou,up_bou,kernel_function)
-% generate support vector machine model version 0
-% version 0 use fmincon to get alpha
-% only support binary classification, 0 and 1
-% X, Y is x_number x variable_number matrix
-% C is penalty factor, default is empty
-% kernel_function default is gauss kernal function
-% kernel_function should be @(x1,x2) ...
+%% GPC
+function [predict_function,CGP_model]=classifyGaussProcess...
+    (X,Class,hyp)
+% generate gauss classifier model
+% version 6,this version is assembly of gpml-3.6 EP method
+% X is x_number x variable_number matirx,Y is x_number x 1 matrix
+% low_bou,up_bou is 1 x variable_number matrix
 %
-if nargin < 6
-    kernel_function=[];
-    if nargin < 3
-        C=[];
-    end
-end
-
+% input:
+% X, Class, hyp(mean,cov(len))
+%
+% abbreviation:
+% pred: predicted,nomlz: normalization,num: number
+% var: variance
+%
 [x_number,variable_number]=size(X);
+if nargin < 5
+    hyp.mean=0;
+    hyp.cov=zeros(1,variable_number);
+end
 
 % normalization data
-if nargin < 5
-    up_bou=max(X);
-    if nargin < 4
-        low_bou=min(X);
-    end
-end
-X_nomlz=(X-low_bou)./(up_bou-low_bou);
+aver_X=mean(X);
+stdD_X=std(X);
+index__=find(stdD_X == 0);
+if  ~isempty(index__),  stdD_X(index__)=1; end
+X_nomlz=(X-aver_X)./stdD_X;
 
-% transfer class into y
-Y=Class;
-for x_index=1:x_number
-    if Y(x_index) == 0
-        Y(x_index)=-1;
-    end
-end
+object_function=@(x) objectFunctionGPC(x,{@infEP},{@meanConst},{@calCov},{@likErf},X_nomlz,Class);
+hyp_x=[hyp.mean,hyp.cov];
+hyp_x=fmincon(object_function,hyp_x,[],[],[],[],[],[],[],...
+    optimoptions('fmincon','Display','none','SpecifyObjectiveGradient',true,'MaxFunctionEvaluations',20));
 
-% default kernal function
-if isempty(kernel_function)
-    sigma=-100*log(1/sqrt(x_number))/variable_number^2;
-    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*sigma);
-end
-
-% initialization kernal function process X_cov
-X_cov=zeros(x_number);
-for rank_index=1:x_number
-    for colume_index=1:rank_index-1
-        X_cov(rank_index,colume_index)=...
-            X_cov(colume_index,rank_index);
-    end
-    for colume_index=rank_index:x_number
-        X_cov(rank_index,colume_index)=...
-            kernel_function(X_nomlz(rank_index,:)',X_nomlz(colume_index,:)');
-    end
-end
-
-% min SVM object function to get alpha
-object_function_SVM=@(alpha) -objectFunctionSVM(alpha,X_cov,Y);
-alpha_initial=ones(x_number,1)*0.5;
-low_bou_fmincon=0*ones(x_number,1);
-if isempty(C) || C==0
-    up_bou_fmincon=[];
-else
-    up_bou_fmincon=C*ones(x_number,1);
-end
-Aeq=Y';
-fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp');
-alpha=fmincon(object_function_SVM,alpha_initial,...
-    [],[],Aeq,0,low_bou_fmincon,up_bou_fmincon,[],fmincon_options);
-
-% obtain other paramter
-w=sum(alpha.*Y.*X_nomlz);
-index_list=find(alpha > 1e-6);
-
-alpha_Y=alpha.*Y;
-alpha_Y_cov=X_cov*alpha_Y;
-b=sum(Y(index_list)-alpha_Y_cov(index_list))/length(index_list);
-
-% generate predict function
-predict_function=@(x) classifySupportVectorMachinePredictor...
-    (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function);
+hyp.mean=hyp_x(1);
+hyp.cov=hyp_x(2:end);
+hyp.lik=[];
+post=infEP(hyp,{@meanConst},{@calCov},{@likErf},X_nomlz,Class);
+predict_function=@(x_pred) classifyGaussPredictor...
+    (x_pred,hyp,{@meanConst},{@calCov},{@likErf},post,X_nomlz,aver_X,stdD_X);
 
 % output model
-SVM_model.X=X;
-SVM_model.Class=Class;
-SVM_model.Y=Y;
-SVM_model.X_nomlz=X_nomlz;
-SVM_model.low_bou=low_bou;
-SVM_model.up_bou=up_bou;
-SVM_model.alpha=alpha;
-SVM_model.w=w;
-SVM_model.b=b;
-SVM_model.kernel_function=kernel_function;
-SVM_model.predict_function=predict_function;
+CGP_model.X=X;
+CGP_model.Class=Class;
+CGP_model.X_nomlz=X_nomlz;
+CGP_model.aver_X=aver_X;
+CGP_model.stdD_X=stdD_X;
+CGP_model.predict_function=predict_function;
+CGP_model.hyp=hyp;
 
-    function fval=objectFunctionSVM(alpha,X_inner_product,Y)
-        % support vector machine maximum object function
-        %
-        alpha=alpha(:);
-        alpha_Y__=alpha.*Y;
-        fval=sum(alpha)-alpha_Y__'*X_inner_product*alpha_Y__/2;
-    end
-    function [predict_class,predict_fval]=classifySupportVectorMachinePredictor...
-            (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function)
-        % predict value of x is 1 or -1
-        % x input is colume vector
-        %
-        x=x(:);
-        
-        x_number__=size(X_nomlz,1);
-        x_nomlz=(x-low_bou')./(up_bou'-low_bou');
-        X_inner_product__=zeros(x_number__,1);
-        for x_index__=1:x_number__
-            X_inner_product__(x_index__)=...
-                kernel_function(X_nomlz(x_index__,:)',x_nomlz);
+    function [fval,gradient]=objectFunctionGPC(x,inf,mean,cov,lik,X,Y)
+        hyp_iter.mean=x(1);
+        hyp_iter.cov=x(2:end);
+        hyp_iter.lik=[];
+
+        if nargout < 2
+            [~,nlZ] = feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
+            fval=nlZ;
+        elseif nargout < 3
+            [~,nlZ,dnlZ]=feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
+            fval=nlZ;
+            gradient=[dnlZ.mean,dnlZ.cov];
         end
-        predict_fval=sum(alpha.*Y.*X_inner_product__)+b;
-        predict_fval=1/(1+exp(-predict_fval));
-        if predict_fval > 0.5
-            predict_class=1;
+    end
+
+    function [class,possibility,miu_pre,var_pre]=classifyGaussPredictor...
+            (X_pred,hyp,mean,cov,lik,post,X,aver_X,stdD_X)
+        % predict function
+        %
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        pred_num=size(X_pred_nomlz,1);
+        ys=ones(pred_num,1);
+
+        alpha = post.alpha; L = post.L; sW = post.sW;
+        nz = true(size(alpha,1),1);               % non-sparse representation
+        %verify whether L contains valid Cholesky decomposition or something different
+        Lchol = isnumeric(L) && all(all(tril(L,-1)==0)&diag(L)'>0&isreal(diag(L))');
+        ns = size(X_pred_nomlz,1);                                       % number of data points
+        nperbatch = 1000;                       % number of data points per mini batch
+        nact = 0;                       % number of already processed test data points
+        ymu = zeros(ns,1); ys2 = ymu; miu_pre = ymu; var_pre = ymu; possibility = ymu;   % allocate mem
+        while nact<ns               % process minibatches of test cases to save memory
+            id = (nact+1):min(nact+nperbatch,ns);               % data points to process
+            kss = feval(cov{:},hyp.cov,X_pred_nomlz(id,:),'diag');              % self-variance
+            Ks = feval(cov{:},hyp.cov,X(nz,:),X_pred_nomlz(id,:));        % avoid computation
+            ms = feval(mean{:},hyp.mean,X_pred_nomlz(id,:));
+            N = size(alpha,2);  % number of alphas (usually 1; more in case of sampling)
+            Fmu = repmat(ms,1,N) + Ks'*full(alpha(nz,:));        % conditional mean fs|f
+            miu_pre(id) = sum(Fmu,2)/N;                                   % predictive means
+            if Lchol    % L contains chol decomp => use Cholesky parameters (alpha,sW,L)
+                V  = L'\(repmat(sW,1,length(id)).*Ks);
+                var_pre(id) = kss - sum(V.*V,1)';                       % predictive variances
+            else                % L is not triangular => use alternative parametrisation
+                if isnumeric(L),LKs = L*Ks; else LKs = L(Ks); end    % matrix or callback
+                var_pre(id) = kss + sum(Ks.*LKs,1)';                    % predictive variances
+            end
+            var_pre(id) = max(var_pre(id),0);   % remove numerical noise i.e. negative variances
+            Fs2 = repmat(var_pre(id),1,N);     % we have multiple values in case of sampling
+            if nargin<9
+                [Lp,Ymu,Ys2] = feval(lik{:},hyp.lik,[],Fmu(:),Fs2(:));
+            else
+                Ys = repmat(ys(id),1,N);
+                [Lp,Ymu,Ys2] = feval(lik{:},hyp.lik,Ys(:),Fmu(:),Fs2(:));
+            end
+            possibility(id)  = sum(reshape(Lp,[],N),2)/N;    % log probability; sample averaging
+            ymu(id) = sum(reshape(Ymu,[],N),2)/N;          % predictive mean ys|y and ..
+            ys2(id) = sum(reshape(Ys2,[],N),2)/N;                          % .. variance
+            nact = id(end);          % set counter to index of last processed data point
+        end
+
+        possibility=exp(possibility);
+        class=ones(pred_num,1);
+        index_list=find(possibility < 0.5);
+        class(index_list)=-1;
+    end
+
+    function [K,dK_dvar]=calCov(cov,X,Z)
+        % obtain covariance of x
+        %
+        [x_num,vari_num]=size(X);
+
+        len=exp(cov(1:vari_num));
+
+        % predict
+        if nargin > 2 && nargout < 2 && ~isempty(Z)
+            if strcmp(Z,'diag')
+                K=1;
+            else
+                [z_number,vari_num]=size(Z);
+                % initializate square of X inner distance
+                K=zeros(x_num,z_number);
+                for len_index=1:vari_num
+                    K=K+(X(:,len_index)-Z(:,len_index)').^2/(len(len_index)^2);
+                end
+                K=exp(-K/2);
+            end
         else
-            predict_class=0;
+            % initializate square of X inner distance
+            sq_dis=zeros(x_num,x_num,vari_num);
+            for len_index=1:vari_num
+                sq_dis(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2;
+            end
+
+            % exp of x__x with theta
+            exp_dis=zeros(x_num);
+            for len_index=1:vari_num
+                exp_dis=exp_dis+sq_dis(:,:,len_index)/2/len(len_index)^2;
+            end
+            exp_dis=exp(-exp_dis);
+            K=exp_dis;
+
+            if nargout >= 2
+                dK_dvar=cell(1,vari_num);
+                for len_index=1:vari_num
+                    dK_dvar{len_index}=K.*sq_dis(:,:,len_index)/len(len_index)^2;
+                end
+            end
+        end
+
+    end
+
+    function [post nlZ dnlZ] = infEP(hyp,mean,cov,lik,x,y)
+        % Expectation Propagation approximation to the posterior Gaussian Process.
+        % The function takes a specified covariance function (see covFunctions.m) and
+        % likelihood function (see likFunctions.m),and is designed to be used with
+        % gp.m. See also infMethods.m. In the EP algorithm,the sites are
+        % updated in random order,for better performance when cases are ordered
+        % according to the targets.
+        %
+        % Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2013-09-13.
+        %
+        % See also INFMETHODS.M.
+        %
+        persistent last_ttau last_tnu              % keep tilde parameters between calls
+        tol = 1e-4; max_sweep = 10; min_sweep = 2;     % tolerance to stop EP iterations
+
+        inf = 'infEP';
+        n = size(x,1);
+        if isnumeric(cov), K = cov;                    % use provided covariance matrix
+        else K = feval(cov{:}, hyp.cov, x); end       % evaluate the covariance matrix
+        if isnumeric(mean),m = mean;                         % use provided mean vector
+        else m = feval(mean{:},hyp.mean,x); end             % evaluate the mean vector
+
+        % A note on naming: variables are given short but descriptive names in
+        % accordance with Rasmussen & Williams "GPs for Machine Learning" (2006): mu
+        % and s2 are mean and variance,nu and tau are natural parameters. A leading t
+        % means tilde,a subscript _ni means "not i" (for cavity parameters),or _n
+        % for a vector of cavity parameters. N(f|mu,Sigma) is the posterior.
+
+        % marginal likelihood for ttau = tnu = zeros(n,1); equals n*log(2) for likCum*
+        nlZ0 = -sum(feval(lik{:},hyp.lik,y,m,diag(K),inf));
+        if any(size(last_ttau) ~= [n 1])      % find starting point for tilde parameters
+            ttau = zeros(n,1); tnu  = zeros(n,1);        % init to zero if no better guess
+            Sigma = K;                     % initialize Sigma and mu,the parameters of ..
+            mu = m; nlZ = nlZ0;                  % .. the Gaussian posterior approximation
+        else
+            ttau = last_ttau; tnu  = last_tnu;   % try the tilde values from previous call
+            [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf);
+            if nlZ > nlZ0                                           % if zero is better ..
+                ttau = zeros(n,1); tnu  = zeros(n,1);       % .. then init with zero instead
+                Sigma = K;                   % initialize Sigma and mu,the parameters of ..
+                mu = m; nlZ = nlZ0;                % .. the Gaussian posterior approximation
+            end
+        end
+
+        nlZ_old = Inf; sweep = 0;               % converged,max. sweeps or min. sweeps?
+        while (abs(nlZ-nlZ_old) > tol && sweep < max_sweep) || sweep<min_sweep
+            nlZ_old = nlZ; sweep = sweep+1;
+            for i = randperm(n)       % iterate EP updates (in random order) over examples
+                tau_ni = 1/Sigma(i,i)-ttau(i);      %  first find the cavity distribution ..
+                nu_ni = mu(i)/Sigma(i,i)-tnu(i);                % .. params tau_ni and nu_ni
+
+                % compute the desired derivatives of the indivdual log partition function
+                [lZ,dlZ,d2lZ] = feval(lik{:},hyp.lik,y(i),nu_ni/tau_ni,1/tau_ni,inf);
+                ttau_old = ttau(i); tnu_old = tnu(i);  % find the new tilde params,keep old
+                ttau(i) =                     -d2lZ  /(1+d2lZ/tau_ni);
+                ttau(i) = max(ttau(i),0); % enforce positivity i.e. lower bound ttau by zero
+                tnu(i)  = ( dlZ - nu_ni/tau_ni*d2lZ )/(1+d2lZ/tau_ni);
+
+                dtt = ttau(i)-ttau_old; dtn = tnu(i)-tnu_old;      % rank-1 update Sigma ..
+                si = Sigma(:,i); ci = dtt/(1+dtt*si(i));
+                Sigma = Sigma - ci*si*si';                         % takes 70% of total time
+                mu = mu - (ci*(mu(i)+si(i)*dtn)-dtn)*si;               % .. and recompute mu
+            end
+            % recompute since repeated rank-one updates can destroy numerical precision
+            [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf);
+        end
+
+        if sweep == max_sweep && abs(nlZ-nlZ_old) > tol
+            error('maximum number of sweeps exceeded in function infEP')
+        end
+
+        last_ttau = ttau; last_tnu = tnu;                       % remember for next call
+        post.alpha = alpha; post.sW = sqrt(ttau); post.L = L;  % return posterior params
+
+        if nargout>2                                           % do we want derivatives?
+            dnlZ = hyp;                                   % allocate space for derivatives
+            tau_n = 1./diag(Sigma)-ttau;             % compute the log marginal likelihood
+            nu_n  = mu./diag(Sigma)-tnu;                    % vectors of cavity parameters
+            sW = sqrt(ttau);
+            F = alpha*alpha'-repmat(sW,1,n).*(L\(L'\diag(sW)));   % covariance hypers
+            [K,dK] = feval(cov{:},hyp.cov,x,[]);
+            for i=1:length(hyp.cov)
+                dnlZ.cov(i) = -sum(sum(F.*dK{i}))/2;
+            end
+            for i = 1:numel(hyp.lik)                                   % likelihood hypers
+                dlik = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf,i);
+                dnlZ.lik(i) = -sum(dlik);
+            end
+            [junk,dlZ] = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf);% mean hyps
+            for i = 1:numel(hyp.mean)
+                dm = feval(mean{:},hyp.mean,x,i);
+                dnlZ.mean(i) = -dlZ'*dm;
+            end
         end
     end
+
+    function [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf)
+        % function to compute the parameters of the Gaussian approximation,Sigma and
+        % mu,and the negative log marginal likelihood,nlZ,from the current site
+        % parameters,ttau and tnu. Also returns L (useful for predictions).
+        %
+        n = length(y);                                      % number of training cases
+        sW = sqrt(ttau);                                        % compute Sigma and mu
+        L = chol(eye(n)+sW*sW'.*K);                            % L'*L=B=eye(n)+sW*K*sW
+        V = L'\(repmat(sW,1,n).*K);
+        Sigma = K - V'*V;
+        alpha = tnu-sW.*(L\(L'\(sW.*(K*tnu+m))));
+        mu = K*alpha+m; v = diag(Sigma);
+
+        tau_n = 1./diag(Sigma)-ttau;             % compute the log marginal likelihood
+        nu_n  = mu./diag(Sigma)-tnu;                    % vectors of cavity parameters
+        lZ = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf);
+        p = tnu-m.*ttau; q = nu_n-m.*tau_n;                        % auxiliary vectors
+        nlZ = sum(log(diag(L))) - sum(lZ) - p'*Sigma*p/2 + (v'*p.^2)/2 ...
+            - q'*((ttau./tau_n.*q-2*p).*v)/2 - sum(log(1+ttau./tau_n))/2;
+    end
+
+    function A = meanConst(hyp,x,i)
+
+        % Constant mean function. The mean function is parameterized as:
+        %
+        % m(x) = c
+        %
+        % The hyperparameter is:
+        %
+        % hyp = [ c ]
+        %
+        % Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2010-08-04.
+        %
+        % See also MEANFUNCTIONS.M.
+
+        if nargin<2,A = '1'; return; end             % report number of hyperparameters
+        if numel(hyp)~=1,error('Exactly one hyperparameter needed.'),end
+        c = hyp;
+        if nargin==2
+            A = c*ones(size(x,1),1);                                       % evaluate mean
+        else
+            if i==1
+                A = ones(size(x,1),1);                                          % derivative
+            else
+                A = zeros(size(x,1),1);
+            end
+        end
+    end
+
+    function [varargout] = likErf(hyp,y,mu,s2,inf,i)
+        % likErf - Error function or cumulative Gaussian likelihood function for binary
+        % classification or probit regression. The expression for the likelihood is
+        %   likErf(t) = (1+erf(t/sqrt(2)))/2 = normcdf(t).
+        %
+        % Several modes are provided,for computing likelihoods,derivatives and moments
+        % respectively,see likFunctions.m for the details. In general,care is taken
+        % to avoid numerical issues when the arguments are extreme.
+        %
+        % Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2014-03-19.
+        %
+        % See also LIKFUNCTIONS.M.
+        %
+        if nargin<3,varargout = {'0'}; return; end   % report number of hyperparameters
+        if nargin>1,y = sign(y); y(y==0) = 1; else y = 1; end % allow only +/- 1 values
+        if numel(y)==0,y = 1; end
+
+        if nargin<5                              % prediction mode if inf is not present
+            y = y.*ones(size(mu));                                       % make y a vector
+            s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps,s2zero = 0; end  % s2==0 ?
+            if s2zero                                         % log probability evaluation
+                lp = logphi(y.*mu);
+            else                                                              % prediction
+                lp = likErf(hyp,y,mu,s2,'infEP');
+            end
+            p = exp(lp); ymu = {}; ys2 = {};
+            if nargout>1
+                ymu = 2*p-1;                                                % first y moment
+                if nargout>2
+                    ys2 = 4*p.*(1-p);                                        % second y moment
+                end
+            end
+            varargout = {lp,ymu,ys2};
+        else                                                            % inference mode
+            switch inf
+                case 'infLaplace'
+                    if nargin<6                                             % no derivative mode
+                        f = mu; yf = y.*f;                            % product latents and labels
+                        varargout = cell(nargout,1); [varargout{:}] = logphi(yf);   % query logphi
+                        if nargout>1
+                            varargout{2} = y.*varargout{2};
+                            if nargout>3,varargout{4} = y.*varargout{4}; end
+                        end
+                    else                                                       % derivative mode
+                        varargout = {[],[],[]};                         % derivative w.r.t. hypers
+                    end
+
+                case 'infEP'
+                    if nargin<6                                             % no derivative mode
+                        z = mu./sqrt(1+s2); dlZ = {}; d2lZ = {};
+                        if numel(y)>0,z = z.*y; end
+                        if nargout<=1,lZ = logphi(z);                         % log part function
+                        else          [lZ,n_p] = logphi(z); end
+                        if nargout>1
+                            if numel(y)==0,y=1; end
+                            dlZ = y.*n_p./sqrt(1+s2);                      % 1st derivative wrt mean
+                            if nargout>2,d2lZ = -n_p.*(z+n_p)./(1+s2); end         % 2nd derivative
+                        end
+                        varargout = {lZ,dlZ,d2lZ};
+                    else                                                       % derivative mode
+                        varargout = {[]};                                     % deriv. wrt hyp.lik
+                    end
+            end
+        end
+    end
+
+    function [lp,dlp,d2lp,d3lp] = logphi(z)
+        % Safe computation of logphi(z) = log(normcdf(z)) and its derivatives
+        %                    dlogphi(z) = normpdf(x)/normcdf(x).
+        % The function is based on index 5725 in Hart et al. and gsl_sf_log_erfc_e.
+        %
+        % Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch,2013-11-13.
+        %
+        z = real(z);                                 % support for real arguments only
+        lp = zeros(size(z));                                         % allocate memory
+        id1 = z.*z<0.0492;                                 % first case: close to zero
+        lp0 = -z(id1)/sqrt(2*pi);
+        c = [ 0.00048204; -0.00142906; 0.0013200243174; 0.0009461589032;
+            -0.0045563339802; 0.00556964649138; 0.00125993961762116;
+            -0.01621575378835404; 0.02629651521057465; -0.001829764677455021;
+            2*(1-pi/3); (4-pi)/3; 1; 1];
+        f = 0; for i=1:14,f = lp0.*(c(i)+f); end,lp(id1) = -2*f-log(2);
+        id2 = z<-11.3137;                                    % second case: very small
+        r = [ 1.2753666447299659525; 5.019049726784267463450;
+            6.1602098531096305441; 7.409740605964741794425;
+            2.9788656263939928886 ];
+        q = [ 2.260528520767326969592;  9.3960340162350541504;
+            12.048951927855129036034; 17.081440747466004316;
+            9.608965327192787870698;  3.3690752069827527677 ];
+        num = 0.5641895835477550741; for i=1:5,num = -z(id2).*num/sqrt(2) + r(i); end
+        den = 1.0;                   for i=1:6,den = -z(id2).*den/sqrt(2) + q(i); end
+        e = num./den; lp(id2) = log(e/2) - z(id2).^2/2;
+        id3 = ~id2 & ~id1; lp(id3) = log(erfc(-z(id3)/sqrt(2))/2);  % third case: rest
+        if nargout>1                                        % compute first derivative
+            dlp = zeros(size(z));                                      % allocate memory
+            dlp( id2) = abs(den./num) * sqrt(2/pi); % strictly positive first derivative
+            dlp(~id2) = exp(-z(~id2).*z(~id2)/2-lp(~id2))/sqrt(2*pi); % safe computation
+            if nargout>2                                     % compute second derivative
+                d2lp = -dlp.*abs(z+dlp);             % strictly negative second derivative
+                if nargout>3                                    % compute third derivative
+                    d3lp = -d2lp.*abs(z+2*dlp)-dlp;     % strictly positive third derivative
+                end
+            end
+        end
+    end
+
 end
 
 %% surrogate model
-function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output]=getRadialBasisModel...
-    (x_list,fval_list,con_list,coneq_list)
-% base on library_data to create radialbasis model and function
+function [kriging_model_fval,kriging_model_con,kriging_model_coneq,output]=getKrigingModel...
+    (x_list,fval_list,con_list,coneq_list,...
+    kriging_model_fval,kriging_model_con,kriging_model_coneq)
+% base on library_data to create kriging model and function
 % if input model, function will updata model
-% object_function is single fval output
+% object_function is multi fval output
 % nonlcon_function is normal nonlcon_function which include con, coneq
 % con is colume vector, coneq is colume vector
 % var_function is same
 %
-[predict_function_fval,radialbasis_model_fval]=interpRadialBasisPreModel...
-    (x_list,fval_list);
+if size(x_list,1) ~= size(fval_list,1)
+    error('getKrigingModel: x_list size no equal fval_list size')
+end
+
+if isempty(kriging_model_fval)
+    [predict_function_fval,kriging_model_fval]=interpKrigingPreModel...
+        (x_list,fval_list);
+else
+    [predict_function_fval,kriging_model_fval]=interpKrigingPreModel...
+        (x_list,fval_list,kriging_model_fval.hyp);
+end
 
 if ~isempty(con_list)
     predict_function_con=cell(size(con_list,2),1);
-    radialbasis_model_con=struct('X',[],'Y',[],...
-        'radialbasis_matrix',[],'beta',[],...
-        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],'basis_function',[],...
-        'predict_function',[]);
-    radialbasis_model_con=repmat(radialbasis_model_con,[size(con_list,2),1]);
-    for con_index=1:size(con_list,2)
-        [predict_function_con{con_index},radialbasis_model_con(con_index)]=...
-            interpRadialBasisPreModel(x_list,con_list(:,con_index));
+    if size(x_list,1) ~= size(con_list,1)
+        error('getKrigingModel: x_list size no equal con_list size')
+    end
+    if isempty(kriging_model_con)
+        kriging_model_con=struct('X',[],'Y',[],...
+            'fval_regression',[],'covariance',[],'inv_covariance',[],...
+            'hyp',[],'beta',[],'gama',[],'sigma_sq',[],...
+            'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
+            'predict_function',[]);
+        kriging_model_con=repmat(kriging_model_con,1,[size(con_list,2)]);
+        for con_index=1:size(con_list,2)
+            [predict_function_con{con_index},kriging_model_con(con_index)]=interpKrigingPreModel...
+                (x_list,con_list(:,con_index));
+        end
+    else
+        for con_index=1:size(con_list,2)
+            [predict_function_con{con_index},kriging_model_con(con_index)]=interpKrigingPreModel...
+                (x_list,con_list(:,con_index),kriging_model_con(con_index).hyp);
+        end
     end
 else
     predict_function_con=[];
-    radialbasis_model_con=[];
+    kriging_model_con=[];
 end
 
 if ~isempty(coneq_list)
-    predict_function_coneq=cell(size(con_list,2),1);
-    radialbasis_model_coneq=struct('X',[],'Y',[],...
-        'radialbasis_matrix',[],'beta',[],...
-        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],'basis_function',[],...
-        'predict_function',[]);
-    radialbasis_model_coneq=repmat(radialbasis_model_coneq,[size(coneq_list,2),1]);
-    for coneq_index=1:size(coneq_list,2)
-        [predict_function_coneq{coneq_index},radialbasis_model_coneq(coneq_index)]=...
-            interpRadialBasisPreModel(x_list,coneq_list(:,coneq_index));
+    predict_function_coneq=cell(size(coneq_list,2),1);
+    if size(x_list,1) ~= size(coneq_list,1)
+        error('getKrigingModel: x_list size no equal coneq_list size')
+    end
+    if isempty(kriging_model_coneq)
+        kriging_model_coneq=struct('X',[],'Y',[],...
+            'fval_regression',[],'covariance',[],'inv_covariance',[],...
+            'hyp',[],'beta',[],'gama',[],'sigma_sq',[],...
+            'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
+            'predict_function',[]);
+        kriging_model_coneq=repmat(kriging_model_coneq,1,[size(coneq_list,2)]);
+        for coneq_index=1:size(coneq_list,2)
+            [predict_function_coneq{coneq_index},kriging_model_coneq(coneq_index)]=interpKrigingPreModel...
+                (x_list,coneq_list(:,coneq_index));
+        end
+    else
+        for coneq_index=1:size(coneq_list,2)
+            [predict_function_coneq{coneq_index},kriging_model_coneq(coneq_index)]=interpKrigingPreModel...
+                (x_list,coneq_list(:,coneq_index),kriging_model_coneq(coneq_index).hyp);
+        end
     end
 else
     predict_function_coneq=[];
-    radialbasis_model_coneq=[];
+    kriging_model_coneq=[];
 end
 
-object_function_surrogate=@(predict_x) objectFunctionSurrogate(predict_x,predict_function_fval);
+object_function_surrogate=@(X_predict) objectFunctionSurrogate(X_predict,predict_function_fval);
 if isempty(predict_function_con) && isempty(predict_function_coneq)
     nonlcon_function_surrogate=[];
 else
-    nonlcon_function_surrogate=@(predict_x) nonlconFunctionSurrogate(predict_x,predict_function_con,predict_function_coneq);
+    nonlcon_function_surrogate=@(X_predict) nonlconFunctionSurrogate(X_predict,predict_function_con,predict_function_coneq);
 end
 
 output.object_function_surrogate=object_function_surrogate;
 output.nonlcon_function_surrogate=nonlcon_function_surrogate;
 
-    function fval=objectFunctionSurrogate...
+    function [fval,fval_var]=objectFunctionSurrogate...
             (X_predict,predict_function_fval)
         % connect all predict favl
         %
-        fval=predict_function_fval(X_predict);
+        [fval,fval_var]=predict_function_fval(X_predict);
     end
 
-    function [con,coneq]=nonlconFunctionSurrogate...
+    function [con,con_var,coneq,coneq_var]=nonlconFunctionSurrogate...
             (X_predict,predict_function_con,predict_function_coneq)
         % connect all predict con and coneq
         %
         if isempty(predict_function_con)
             con=[];
+            con_var=[];
         else
             con=zeros(size(X_predict,1),length(predict_function_con));
+            con_var=zeros(size(X_predict,1),length(predict_function_con));
             for con_index__=1:length(predict_function_con)
-                con(:,con_index__)=....
+                [con(:,con_index__),con_var(:,con_index__)]=....
                     predict_function_con{con_index__}(X_predict);
             end
         end
         if isempty(predict_function_coneq)
             coneq=[];
+            coneq_var=[];
         else
             coneq=zeros(size(X_predict,1),length(predict_function_coneq));
+            coneq_var=zeros(size(X_predict,1),length(predict_function_coneq));
             for coneq_index__=1:length(predict_function_coneq)
-                coneq(:,coneq_index__)=...
+                [coneq(:,coneq_index__),coneq_var(:,coneq_index__)]=...
                     predict_function_coneq{coneq_index__}(X_predict);
             end
         end
     end
 end
 
-function [predict_function,radialbasis_model]=interpRadialBasisPreModel...
-    (X,Y,basis_function)
-% radial basis function interp pre model function
-% input initial data X, Y, which are real data
+function [predict_function,kriging_model]=interpKrigingPreModel...
+    (X,Y,hyp)
+% nomalization method is grassian
+% add multi x_predict input support
+% prepare model, optimal theta and calculation parameter
 % X, Y are x_number x variable_number matrix
 % aver_X,stdD_X is 1 x x_number matrix
-% output is a radial basis model, include X, Y, base_function
-% and predict_function
+% theta beta gama sigma_sq is normalizede, so predict y is normalize
+% theta=exp(hyp)
 %
-% Copyright 2023 Adel
+% input initial data X, Y, which are real data
 %
-if nargin < 3
-    basis_function=[];
-end
-
+% output is a kriging model, include predict_function...
+% X, Y, base_function_list
+%
+% Copyright 2023.2 Adel
+%
 [x_number,variable_number]=size(X);
+if nargin < 3
+    hyp=zeros(1,variable_number);
+end
 
 % normalize data
 aver_X=mean(X);
@@ -1158,607 +1547,189 @@ stdD_X=std(X);
 aver_Y=mean(Y);
 stdD_Y=std(Y);
 index__=find(stdD_X == 0);
-if ~isempty(index__),stdD_X(index__)=1;end
+if  ~isempty(index__),  stdD_X(index__)=1; end
 index__=find(stdD_Y == 0);
-if ~isempty(index__),stdD_Y(index__)=1;end
+if  ~isempty(index__),  stdD_Y(index__)=1; end
 X_nomlz=(X-aver_X)./stdD_X;
 Y_nomlz=(Y-aver_Y)./stdD_Y;
 
-if isempty(basis_function)
-    c=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
-    basis_function=@(r) exp(-(r.^2)/c);
-end
-
-% initialization distance of all X
-X_dis=zeros(x_number,x_number);
+% initial X_dis_sq
+X_dis_sq=zeros(x_number,x_number,variable_number);
 for variable_index=1:variable_number
-    X_dis=X_dis+(X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
+    X_dis_sq(:,:,variable_index)=...
+        (X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
 end
-X_dis=sqrt(X_dis);
 
-[beta,rdibas_matrix]=interpRadialBasis...
-    (X_dis,Y_nomlz,basis_function,x_number);
+% regression function define
+% notice reg_function process no normalization data
+% reg_function=@(X) regZero(X);
+reg_function=@(X) regLinear(X);
+
+% calculate reg
+fval_reg_nomlz=(reg_function(X)-0)./1;
+
+% optimal to get hyperparameter
+fmincon_option=optimoptions('fmincon','Display','none',...
+    'OptimalityTolerance',1e-2,...
+    'FiniteDifferenceStepSize',1e-5,...,
+    'MaxIterations',10,'SpecifyObjectiveGradient',false);
+low_bou_hyp=-4*ones(1,variable_number);
+up_bou_hyp=4*ones(1,variable_number);
+object_function_hyp=@(hyp) objectNLLKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
+
+% [fval,gradient]=object_function_hyp(hyp)
+% [~,gradient_differ]=differ(object_function_hyp,hyp)
+
+% drawFunction(object_function_hyp,low_bou_hyp,up_bou_hyp);
+
+hyp=fmincon...
+    (object_function_hyp,hyp,[],[],[],[],low_bou_hyp,up_bou_hyp,[],fmincon_option);
+
+% get parameter
+[covariance,inv_covariance,beta,sigma_sq]=interpKriging...
+    (X_dis_sq,Y_nomlz,x_number,variable_number,exp(hyp),fval_reg_nomlz);
+gama=inv_covariance*(Y_nomlz-fval_reg_nomlz*beta);
+FTRF=fval_reg_nomlz'*inv_covariance*fval_reg_nomlz;
 
 % initialization predict function
-predict_function=@(X_predict) interpRadialBasisPredictor...
+predict_function=@(X_predict) interpKrigingPredictor...
     (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_number,variable_number,beta,basis_function);
+    x_number,variable_number,exp(hyp),beta,gama,sigma_sq,...
+    inv_covariance,fval_reg_nomlz,FTRF,reg_function);
 
-radialbasis_model.X=X;
-radialbasis_model.Y=Y;
-radialbasis_model.radialbasis_matrix=rdibas_matrix;
-radialbasis_model.beta=beta;
+kriging_model.X=X;
+kriging_model.Y=Y;
+kriging_model.fval_regression=fval_reg_nomlz;
+kriging_model.covariance=covariance;
+kriging_model.inv_covariance=inv_covariance;
 
-radialbasis_model.aver_X=aver_X;
-radialbasis_model.stdD_X=stdD_X;
-radialbasis_model.aver_Y=aver_Y;
-radialbasis_model.stdD_Y=stdD_Y;
-radialbasis_model.basis_function=basis_function;
+kriging_model.hyp=hyp;
+kriging_model.beta=beta;
+kriging_model.gama=gama;
+kriging_model.sigma_sq=sigma_sq;
+kriging_model.aver_X=aver_X;
+kriging_model.stdD_X=stdD_X;
+kriging_model.aver_Y=aver_Y;
+kriging_model.stdD_Y=stdD_Y;
 
-radialbasis_model.predict_function=predict_function;
+kriging_model.predict_function=predict_function;
 
 % abbreviation:
-% num: number, pred: predict, vari: variable
-    function [beta,rdibas_matrix]=interpRadialBasis...
-            (X_dis,Y,basis_function,x_number)
-        % interp polynomial responed surface core function
-        % calculation beta
+% num: number, pred: predict, vari: variable, hyp: hyper parameter
+% NLL: negative log likelihood
+    function [fval,gradient]=objectNLLKriging...
+            (X_dis_sq,Y,x_num,vari_num,hyp,F_reg)
+        % function to minimize sigma_sq
         %
-        % Copyright 2022 Adel
-        %
-        rdibas_matrix=basis_function(X_dis);
-        
-        % stabilize matrix
-        rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
-        
-        % solve beta
-        beta=rdibas_matrix\Y;
-    end
+        theta=exp(hyp);
+        [cov,inv_cov,~,sigma2,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
 
-    function [Y_pred]=interpRadialBasisPredictor...
+        % calculation negative log likelihood
+        L=chol(cov)';
+        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+
+        % calculate gradient
+        if nargout > 1
+            % gradient
+            gradient=zeros(vari_num,1);
+            for vari_index=1:vari_num
+                dcov_dtheta=-(X_dis_sq(:,:,vari_index).*cov)*theta(vari_index)/vari_num;
+
+                dinv_cov_dtheta=...
+                    -inv_cov*dcov_dtheta*inv_cov;
+
+                dinv_FTRF_dtheta=-inv_FTRF*...
+                    (F_reg'*dinv_cov_dtheta*F_reg)*...
+                    inv_FTRF;
+                
+                dmiu_dtheta=dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
+                    inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
+                
+                dY_Fmiu_dtheta=-F_reg*dmiu_dtheta;
+
+                dsigma2_dtheta=(dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
+                    Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
+                    Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
+                
+                dlnsigma2_dtheta=1/sigma2*dsigma2_dtheta;
+
+                dlndetR=trace(inv_cov*dcov_dtheta);
+
+                gradient(vari_index)=x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
+            end
+        end
+    end
+    function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
+            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
+        % kriging interpolation kernel function
+        % Y(x)=beta+Z(x)
+        %
+        cov=zeros(x_num,x_num);
+        for vari_index=1:vari_num
+            cov=cov+X_dis_sq(:,:,vari_index)*theta(vari_index);
+        end
+        cov=exp(-cov/vari_num)+eye(x_num)*1e-3;
+
+        % coefficient calculation
+        inv_cov=cov\eye(x_num);
+        inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(size(F_reg,2));
+
+        % basical bias
+        beta=inv_FTRF*(F_reg'*inv_cov*Y);
+        Y_Fmiu=Y-F_reg*beta;
+        sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
+        
+    end
+    function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,beta,basis_function)
-        % radial basis function interpolation predict function
+            x_num,vari_num,theta,beta,gama,sigma_sq,...
+            inv_cov,fval_reg_nomlz,FTRF,reg_function)
+        % kriging interpolation predict function
+        % input predict_x and kriging model
+        % predict_x is row vector
+        % output the predict value
         %
         [x_pred_num,~]=size(X_pred);
+        fval_reg_pred=reg_function(X_pred);
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
         
-        % calculate distance
-        X_dis_pred=zeros(x_pred_num,x_num);
+        % predict covariance
+        predict_cov=zeros(x_num,x_pred_num);
         for vari_index=1:vari_num
-            X_dis_pred=X_dis_pred+...
-                (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
+            predict_cov=predict_cov+...
+                (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2*theta(vari_index);
         end
-        X_dis_pred=sqrt(X_dis_pred);
+        predict_cov=exp(-predict_cov/vari_num);
+
+        % predict base fval
+        
+        Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
         
         % predict variance
-        Y_pred=basis_function(X_dis_pred)*beta;
+        u__=fval_reg_nomlz'*inv_cov*predict_cov-fval_reg_pred_nomlz';
+        Var_pred=sigma_sq*...
+            (1+u__'/FTRF*u__+...
+            -predict_cov'*inv_cov*predict_cov);
         
         % normalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
+        Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
     end
-
-end
-
-function [ERBF_model_fval,ERBF_model_con,ERBF_model_coneq,output]=getEnsemleRadialBasisModel...
-    (x_list,fval_list,con_list,coneq_list)
-% base on library_data to create kriging model and function
-% object_function is single fval output
-% nonlcon_function is normal nonlcon_function which include con, coneq
-% con is colume vector, coneq is colume vector
-%
-[predict_function_fval,ERBF_model_fval]=interpEnsemleRadialBasisPreModel...
-    (x_list,fval_list);
-
-if ~isempty(con_list)
-    predict_function_con=cell(size(con_list,2),1);
-    ERBF_model_con=struct('X',[],'Y',[],...
-        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
-        'basis_function_list',[],'c_list',[],'beta_list',[],...
-        'rdibas_matrix_list',[],'inv_rdibas_matrix_list',[],'model_error_list',[],'w',[],...
-        'predict_function',[]);
-    ERBF_model_con=repmat(ERBF_model_con,[size(con_list,2),1]);
-    for con_index=1:size(con_list,2)
-        [predict_function_con{con_index},ERBF_model_con(con_index)]=...
-            interpolationEnsemleRadialBasisPreModel(x_list,con_list(:,con_index));
-    end
-else
-    predict_function_con=[];
-    ERBF_model_con=[];
-end
-
-if ~isempty(coneq_list)
-    predict_function_coneq=cell(size(con_list,2),1);
-    ERBF_model_coneq=struct('X',[],'Y',[],...
-        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],...
-        'basis_function_list',[],'c_list',[],'beta_list',[],...
-        'rdibas_matrix_list',[],'inv_rdibas_matrix_list',[],'model_error_list',[],'w',[],...
-        'predict_function',[]);
-    ERBF_model_coneq=repmat(ERBF_model_coneq,[size(coneq_list,2),1]);
-    for coneq_index=1:size(coneq_list,2)
-        [predict_function_coneq{con_index},ERBF_model_coneq(con_index)]=...
-            interpolationEnsemleRadialBasisPreModel(x_list,coneq_list(:,coneq_index));
-    end
-else
-    predict_function_coneq=[];
-    ERBF_model_coneq=[];
-end
-
-object_function_surrogate=@(predict_x) objectFunctionSurrogate(predict_x,predict_function_fval);
-if isempty(predict_function_con) && isempty(predict_function_coneq)
-    nonlcon_function_surrogate=[];
-else
-    nonlcon_function_surrogate=@(predict_x) nonlconFunctionSurrogate(predict_x,predict_function_con,predict_function_coneq);
-end
-
-output.object_function_surrogate=object_function_surrogate;
-output.nonlcon_function_surrogate=nonlcon_function_surrogate;
-
-    function fval=objectFunctionSurrogate...
-            (X_predict,predict_function_fval)
-        % connect all predict favl
+    function F_reg=regZero(X)
+        % zero order base funcion
         %
-        fval=predict_function_fval(X_predict);
+        F_reg=ones(size(X,1),1); % zero
     end
-
-    function [con,coneq]=nonlconFunctionSurrogate...
-            (X_predict,predict_function_con,predict_function_coneq)
-        % connect all predict con and coneq
+    function F_reg=regLinear(X)
+        % first order base funcion
         %
-        if isempty(predict_function_con)
-            con=[];
-        else
-            con=zeros(size(X_predict,1),length(predict_function_con));
-            for con_index__=1:length(predict_function_con)
-                con(:,con_index__)=....
-                    predict_function_con{con_index__}(X_predict);
-            end
-        end
-        if isempty(predict_function_coneq)
-            coneq=[];
-        else
-            coneq=zeros(size(X_predict,1),length(predict_function_coneq));
-            for coneq_index__=1:length(predict_function_coneq)
-                coneq(:,coneq_index__)=...
-                    predict_function_coneq{coneq_index__}(X_predict);
-            end
-        end
+        F_reg=[ones(size(X,1),1),X]; % linear
     end
-end
-
-function [predict_function,ensemleradialbasis_model]=interpEnsemleRadialBasisPreModel...
-    (X,Y)
-% get ensemle radial basis function interpolation model function
-% using quadratic programming to calculate weigth of each sub model
-% using cubic interpolation optimal to decrese time use
-% input initial data X, Y, which are real data
-% X, Y are x_number x variable_number matrix
-% aver_X,stdD_X is 1 x x_number matrix
-% output is a radial basis model, include X, Y, base_function
-% and predict_function
-%
-% reference: [1] SHI R, LIU L, LONG T, et al. An efficient ensemble of
-% radial basis functions method based on quadratic programming [J].
-% Engineering Optimization, 2016, 48(1202 - 25.
-%
-% Copyright 2023 Adel
-%
-[x_number,variable_number]=size(X);
-
-% normalize data
-aver_X=mean(X);
-stdD_X=std(X);
-aver_Y=mean(Y);
-stdD_Y=std(Y);
-index__=find(stdD_X == 0);
-if ~isempty(index__),stdD_X(index__)=1;end
-index__=find(stdD_Y == 0);
-if ~isempty(index__),stdD_Y(index__)=1;end
-X_nomlz=(X-aver_X)./stdD_X;
-Y_nomlz=(Y-aver_Y)./stdD_Y;
-
-c_initial=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
-
-% initialization distance of all X
-X_dis=zeros(x_number,x_number);
-for variable_index=1:variable_number
-    X_dis=X_dis+(X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
-end
-X_dis=sqrt(X_dis);
-
-% linear kernal function
-basis_function_linear=@(r,c) r+c;
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) ones(x_number,x_number);
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_linear,c,dRM_dc_function);
-
-[linear_c_backward,fval_backward,~]=optimalCubicInterp...
-    (object_function,-1e2,-1e2,1e2,1e-3);
-[linear_c_forward,fval_forward,~]=optimalCubicInterp...
-    (object_function,1e2,-1e2,1e2,1e-3);
-if fval_forward < fval_backward
-    c_linear=linear_c_forward;
-else
-    c_linear=linear_c_backward;
-end
-
-% gauss kernal function
-basis_function_gauss=@(r,c) exp(-c*r.^2);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) -X_dis.^2.*rdibas_matrix;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_gauss,c,dRM_dc_function);
-[c_gauss,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% spline kernal function
-basis_function_spline=@(r,c) r.^2.*log(r.^2*c+1e-3);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) X_dis.^4./(X_dis.^2*c+1e-3);
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_spline,c,dRM_dc_function);
-[c_spline,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% triple kernal function
-basis_function_triple=@(r,c) (r+c).^3;
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) 3*(X_dis+c).^3;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_triple,c,dRM_dc_function);
-[c_triple,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% multiquadric kernal function
-basis_function_multiquadric=@(r,c) sqrt(r+c);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) 0.5./rdibas_matrix;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_multiquadric,c,dRM_dc_function);
-[c_binomial,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% inverse multiquadric kernal function
-basis_function_inverse_multiquadric=@(r,c) 1./sqrt(r+c);
-dRM_dc_function=@(x_number,X_dis,rdibas_matrix,c) -0.5*rdibas_matrix.^3;
-object_function=@(c) objectFunctionRadiabasis....
-    (X_dis,Y_nomlz,x_number,basis_function_inverse_multiquadric,c,dRM_dc_function);
-
-% c_initial=1;
-% drawFunction(object_function,1e-1,10);
-
-[c_inverse_binomial,~,~,~]=optimalCubicInterp...
-    (object_function,c_initial,1e-2,1e2,1e-3);
-
-% generate total model
-basis_function_list={
-    @(r) basis_function_linear(r,c_linear);
-    @(r) basis_function_gauss(r,c_gauss);
-    @(r) basis_function_spline(r,c_spline);
-    @(r) basis_function_triple(r,c_triple);
-    @(r) basis_function_multiquadric(r,c_binomial);
-    @(r) basis_function_inverse_multiquadric(r,c_inverse_binomial);};
-c_list=[c_linear;c_gauss;c_spline;c_triple;c_binomial;c_inverse_binomial];
-
-model_number=size(basis_function_list,1);
-beta_list=zeros(x_number,model_number);
-rdibas_matrix_list=zeros(x_number,x_number,model_number);
-inv_rdibas_matrix_list=zeros(x_number,x_number,model_number);
-
-% calculate model matrix and error
-model_error_list=zeros(model_number,x_number);
-for model_index=1:model_number
-    basis_function=basis_function_list{model_index};
-    [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
-        (X_dis,Y_nomlz,basis_function,x_number);
-    beta_list(:,model_index)=beta;
-    rdibas_matrix_list(:,:,model_index)=rdibas_matrix;
-    inv_rdibas_matrix_list(:,:,model_index)=inv_rdibas_matrix;
-    
-    model_error_list(model_index,:)=(beta./...
-        diag(inv_rdibas_matrix))';
-end
-
-% calculate weight of each model
-C=model_error_list*model_error_list';
-eta=trace(C)/x_number;
-I_model=eye(model_number);
-one_model=ones(model_number,1);
-w=(C+eta*I_model)\one_model/...
-    (one_model'*((C+eta*I_model)\one_model));
-while min(w) < -0.05
-    % minimal weight cannot less than zero too much
-    eta=eta*10;
-    w=(C+eta*I_model)\one_model/...
-        (one_model'*((C+eta*I_model)\one_model));
-end
-
-% initialization predict function
-predict_function=@(X_predict) interpEnsemleRadialBasisPredictor...
-    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_number,variable_number,model_number,beta_list,basis_function_list,w);
-
-ensemleradialbasis_model.X=X;
-ensemleradialbasis_model.Y=Y;
-ensemleradialbasis_model.aver_X=aver_X;
-ensemleradialbasis_model.stdD_X=stdD_X;
-ensemleradialbasis_model.aver_Y=aver_Y;
-ensemleradialbasis_model.stdD_Y=stdD_Y;
-
-ensemleradialbasis_model.basis_function_list=basis_function_list;
-ensemleradialbasis_model.c_list=c_list;
-ensemleradialbasis_model.beta_list=beta_list;
-ensemleradialbasis_model.rdibas_matrix_list=rdibas_matrix_list;
-ensemleradialbasis_model.inv_rdibas_matrix_list=inv_rdibas_matrix_list;
-ensemleradialbasis_model.model_error_list=model_error_list;
-ensemleradialbasis_model.w=w;
-
-ensemleradialbasis_model.predict_function=predict_function;
-
-% abbreviation:
-% num: number, pred: predict, vari: variable
-    function [fval,gradient]=objectFunctionRadiabasis....
-            (X_dis,Y,x_number,basis_function,c,dRM_dc_function)
-        % MSE_CV function, simple approximation to RMS
-        % basis_function input is c and x_sq
-        %
-        basis_function=@(r) basis_function(r,c);
-        [beta__,rdibas_matrix__,inv_rdibas_matrix__]=interpRadialBasis...
-            (X_dis,Y,basis_function,x_number);
-        U=beta__./diag(inv_rdibas_matrix__);
-        fval=sum(U.^2);
-        
-        % calculate gradient
-        if nargout > 1
-            inv_rdibas_matrix_gradient=-inv_rdibas_matrix__*...
-                dRM_dc_function...
-                (x_number,X_dis,rdibas_matrix__,c)*inv_rdibas_matrix__;
-            U_gradient=zeros(x_number,1);
-            I=eye(x_number);
-            for x_index=1:x_number
-                U_gradient(x_index)=(I(x_index,:)*inv_rdibas_matrix_gradient*Y)/...
-                    inv_rdibas_matrix__(x_index,x_index)-...
-                    beta__(x_index)*(I(x_index,:)*inv_rdibas_matrix_gradient*I(:,x_index))/...
-                    inv_rdibas_matrix__(x_index,x_index)^2;
-            end
-            
-            gradient=2*sum(U.*U_gradient);
-        end
-    end
-
-    function [beta,rdibas_matrix,inv_rdibas_matrix]=interpRadialBasis...
-            (X_dis,Y,basis_function,x_number)
-        % interp polynomial responed surface core function
-        % calculation beta
-        %
-        % Copyright 2022 Adel
-        %
-        rdibas_matrix=basis_function(X_dis);
-        
-        % stabilize matrix
-        rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
-        
-        % solve beta
-        inv_rdibas_matrix=rdibas_matrix\eye(x_number);
-        beta=inv_rdibas_matrix*Y;
-    end
-
-    function [x_best,favl_best,NFE,output]=optimalCubicInterp...
-            (object_function,x_initial,low_bou,up_bou,torlance,iteration_max)
-        % cubic interp optimization, should provide fval and gradient
-        % only work for one best(convex)
-        %
-        if nargin < 6
-            iteration_max=[];
-            if nargin < 5
-                torlance=[];
-                if nargin < 4
-                    up_bou=[];
-                    if nargin < 3
-                        low_bou=[];
-                        if nargin < 2
-                            error('lack x initial');
-                        end
-                    end
-                end
-            end
-        end
-        
-        INFORMATION_FLAG=0; % whether show information
-        
-        draw_range=0.001;
-        draw_interval=draw_range*0.02;
-        DRAW_FLAG=0;
-        
-        if isempty(iteration_max)
-            iteration_max=10*length(x_initial);
-        end
-        
-        if isempty(torlance)
-            torlance=1e-6;
-        end
-        
-        x=x_initial;
-        done=0;
-        iteration=0;
-        NFE=0;
-        result_x_list=[];
-        result_fval_list=[];
-        
-        % decide which turn to search
-        [fval,gradient]=object_function(x);NFE=NFE+1;
-        result_x_list=[result_x_list;x];
-        result_fval_list=[result_fval_list;fval];
-        if gradient < -torlance
-            direction=1;
-        elseif gradient > torlance
-            direction=-1;
-        else
-            done=1;
-            x_best=x;
-            favl_best=fval;
-        end
-        
-        x_old=x;
-        fval_old=fval;
-        gradient_old=gradient;
-        iteration=iteration+1;
-        
-        % move forward to first point
-        if ~done
-            x=x_old+direction*0.01;
-            if x > up_bou
-                x=up_bou;
-            elseif x < low_bou
-                x=low_bou;
-            end
-            [fval,gradient]=object_function(x);NFE=NFE+1;
-            result_x_list=[result_x_list;x];
-            result_fval_list=[result_fval_list;fval];
-            quit_flag=judgeQuit...
-                (x,x_old,fval,fval_old,gradient,torlance,iteration,iteration_max);
-            if quit_flag
-                done=1;
-                x_best=x;
-                favl_best=fval;
-            end
-            iteration=iteration+1;
-        end
-        
-        % main loop for cubic interp
-        while ~done
-            
-            x_base=x_old;
-            x_relative=x/x_old;
-            interp_matrix=[1,1,1,1;
-                3,2,1,0;
-                x_relative^3,x_relative^2,x_relative,1;
-                3*x_relative^2,2*x_relative,1,0];
-            
-            if rcond(interp_matrix) < eps
-                disp('error');
-            end
-            
-            interp_value=[fval_old;gradient_old*x_base;fval;gradient*x_base];
-            [x_inter_rel,coefficient_cubic]=minCubicInterpolate(interp_matrix,interp_value);
-            x_inter=x_inter_rel*x_base;
-            
-            if DRAW_FLAG
-                x_draw=1:direction*draw_interval:direction*draw_range;
-                x_draw=x_draw/x_base;
-                line(x_draw*x_base,coefficient_cubic(1)*x_draw.^3+coefficient_cubic(2)*x_draw.^2+...
-                    coefficient_cubic(3)*x_draw+coefficient_cubic(4));
-            end
-            
-            % limit search space, process constraints
-            if x_inter > up_bou
-                x_inter=up_bou;
-            elseif x_inter < low_bou
-                x_inter=low_bou;
-            end
-            
-            [fval_inter,gradient_inter]=object_function(x_inter);NFE=NFE+1;
-            
-            % only work for one best(convex)
-            % three situation discuss
-            if gradient < 0
-                x_old=x;
-                fval_old=fval;
-                gradient_old=gradient;
-            else
-                if gradient_inter < 0
-                    x_old=x;
-                    fval_old=fval;
-                    gradient_old=gradient;
-                end
-            end
-            
-            x=x_inter;
-            fval=fval_inter;
-            gradient=gradient_inter;
-            
-            quit_flag=judgeQuit...
-                (x,x_old,fval,fval_old,gradient,torlance,iteration,iteration_max);
-            if quit_flag
-                done=1;
-                x_best=x;
-                favl_best=fval;
-            end
-            
-            result_x_list=[result_x_list;x];
-            result_fval_list=[result_fval_list;fval];
-            iteration=iteration+1;
-        end
-        output.result_x_list=result_x_list;
-        output.result_fval_list=result_fval_list;
-        
-        function [lamada,coefficient_cubic]=minCubicInterpolate(interpolate_matrix,interpolate_value)
-            % calculate min cubic curve
-            %
-            coefficient_cubic=interpolate_matrix\interpolate_value;
-            
-            temp_sqrt=4*coefficient_cubic(2)^2-12*coefficient_cubic(1)*coefficient_cubic(3);
-            if temp_sqrt>=0
-                temp_lamada=-coefficient_cubic(2)/3/coefficient_cubic(1)+...
-                    sqrt(temp_sqrt)/6/coefficient_cubic(1);
-                if (temp_lamada*6*coefficient_cubic(1)+2*coefficient_cubic(2))>0
-                    lamada=temp_lamada;
-                else
-                    lamada=-coefficient_cubic(2)/3/coefficient_cubic(1)-...
-                        sqrt(temp_sqrt)...
-                        /6/coefficient_cubic(1);
-                end
-            else
-                lamada=-coefficient_cubic(2)/3/coefficient_cubic(1);
-            end
-        end
-        function quit_flag=judgeQuit...
-                (x,x_old,fval,fval_old,gradient,torlance,iteration,iteration_max)
-            quit_flag=0;
-            if abs(fval-fval_old)/fval_old < torlance
-                quit_flag=1;
-            end
-            if abs(gradient) < torlance
-                quit_flag=1;
-            end
-            if abs(x-x_old) < 1e-5
-                quit_flag=1;
-            end
-            if iteration >= iteration_max
-                quit_flag=1;
-            end
-        end
-    end
-
-    function Y_pred=interpEnsemleRadialBasisPredictor...
-            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,model_number,beta_list,basis_function_list,w)
-        % ensemle radial basis function interpolation predict function
-        %
-        [x_pred_num,~]=size(X_pred);
-
-        % normalize data
-        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        
-        % calculate distance
-        X_dis_pred=zeros(x_pred_num,x_num);
-        for vari_index=1:vari_num
-            X_dis_pred=X_dis_pred+...
-                (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
-        end
-        X_dis_pred=sqrt(X_dis_pred);
-
-        % calculate each sub model predict fval and get predict_y
-        y_pred_nomlz_list=zeros(x_pred_num,model_number);
-        for model_index__=1:model_number
-            basis_function__=basis_function_list{model_index__};
-            beta__=beta_list(:,model_index__);
-            y_pred_nomlz_list(:,model_index__)=basis_function__(X_dis_pred)*beta__;
-        end
-        Y_pred_nomlz=y_pred_nomlz_list*w;
-        
-        % normalize data
-        Y_pred=Y_pred_nomlz*stdD_Y+aver_Y;
-    end
-
 end
 
 %% data library
