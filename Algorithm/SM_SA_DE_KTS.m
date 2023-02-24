@@ -550,7 +550,7 @@ output.result_fval_best=result_fval_best;
                 normpdf((con_DE_base-con_DE_list)./con_var_DE_list),2);
             [~,con_best_index]=max(con_impove_probability_list);
             con_best_index=con_best_index(1);
-            x_global_infill=x_DE_list(con_best_index,:)';
+            x_global_infill=x_DE_list(con_best_index,:);
         end
         
         % base on best fitness select global infill

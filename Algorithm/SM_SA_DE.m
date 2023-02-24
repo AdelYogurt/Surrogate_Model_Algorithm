@@ -30,6 +30,20 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
+variable_number=2;
+object_function=@(x) benchmark.singleG06Object(x);
+object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[13,0];
+up_bou=[100,100];
+nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
+nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+cheapcon_function=[];
+model_function=[];
+
 % variable_number=13;
 % object_function=@benchmark.singleG01Object;
 % object_function_low=@benchmark.singleG01ObjectLow;
@@ -65,18 +79,18 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=20;
-object_function=@(x) benchmark.singleEP20Object(x);
-object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=ones(1,variable_number)*-30;
-up_bou=ones(1,variable_number)*30;
-nonlcon_function=[];
-nonlcon_function_LF=[];
-cheapcon_function=[];
+% variable_number=20;
+% object_function=@(x) benchmark.singleEP20Object(x);
+% object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
+% nonlcon_function=[];
+% nonlcon_function_LF=[];
+% cheapcon_function=[];
 
 % x_initial=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % [x_best,fval_best,~,output]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,[],optimoptions('fmincon','Algorithm','sqp','MaxFunctionEvaluations',10000))
@@ -484,7 +498,7 @@ output.result_fval_best=result_fval_best;
                 normpdf((con_DE_base-con_DE_list)./con_var_DE_list),2);
             [~,con_best_index]=max(con_impove_probability_list);
             con_best_index=con_best_index(1);
-            x_global_infill=x_DE_list(con_best_index,:)';
+            x_global_infill=x_DE_list(con_best_index,:);
         end
         
         % base on best fitness select global infill
