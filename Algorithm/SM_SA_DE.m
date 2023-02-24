@@ -285,8 +285,8 @@ while ~done
             continue;
         end
         if isempty(feasiable_index_list)
-            min_con=min(con_list(1:end-1),[],1);
-            min_coneq=min(abs(coneq_list(1:end-1)),[],1);
+            min_con=min(con_list(1:end-1,:),[],1);
+            min_coneq=min(abs(coneq_list(1:end-1,:)),[],1);
             if ~isempty(con_list)
                 if ~sum(con_global_infill > min_con) % imporve
                     search_flag=0;
@@ -298,7 +298,7 @@ while ~done
                 end
             end
         else
-            min_fval=min(fval_list(1:end-1),[],1);
+            min_fval=min(fval_list(1:end-1,:),[],1);
             if fval_global_infill < min_fval  % imporve
                 search_flag=0;
             end
@@ -335,12 +335,12 @@ while ~done
             min_con=min(con_list(1:end-1),[],1);
             min_coneq=min(abs(coneq_list(1:end-1)),[],1);
             if ~isempty(con_list)
-                if ~sum(con_local_infill > min_con) % imporve
+                if ~sum(max(con_local_infill) > min_con) % imporve
                     search_flag=1;
                 end
             end
             if isempty(coneq_list)
-                if ~sum(abs(coneq_local_infill) > min_coneq) % imporve
+                if ~sum(max(abs(coneq_local_infill)) > min_coneq) % imporve
                     search_flag=1;
                 end
             end
