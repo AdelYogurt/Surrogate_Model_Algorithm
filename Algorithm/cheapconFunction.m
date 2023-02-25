@@ -17,6 +17,7 @@ if nargin < 6
         end
     end
 end
+x=x(:)';
 con=[];
 coneq=[];
 if ~isempty(A)

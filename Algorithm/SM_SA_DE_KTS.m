@@ -410,15 +410,15 @@ while ~done
         cheapcon_function,nonlcon_torlance);
     
     if INFORMATION_FLAG
-%         fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
+        fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
         if infor_search_flag == 0
-%             fprintf('global x:          %s\n',num2str(x_global_infill));
+            fprintf('global x:          %s\n',num2str(x_global_infill));
             fprintf('global value:      %f\n',fval_global_infill);
-%             fprintf('global violation:  %s  %s\n',num2str(con_global_infill),num2str(coneq_global_infill));
+            fprintf('global violation:  %s  %s\n',num2str(con_global_infill),num2str(coneq_global_infill));
         else
-%             fprintf('local  x:          %s\n',num2str(x_local_infill));
+            fprintf('local  x:          %s\n',num2str(x_local_infill));
             fprintf('local  value:      %f\n',fval_local_infill);
-%             fprintf('local  violation:  %s  %s\n',num2str(con_local_infill),num2str(coneq_local_infill));
+            fprintf('local  violation:  %s  %s\n',num2str(con_local_infill),num2str(coneq_local_infill));
         end
         fprintf('\n');
     end

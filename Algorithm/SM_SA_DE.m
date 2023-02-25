@@ -30,17 +30,31 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=2;
-object_function=@(x) benchmark.singleG06Object(x);
-object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
-A=[];
-B=[];
+% variable_number=2;
+% object_function=@(x) benchmark.singleG06Object(x);
+% object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=[13,0];
+% up_bou=[100,100];
+% nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
+% nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+% cheapcon_function=[];
+% model_function=[];
+
+variable_number=4;
+object_function=@(x) benchmark.singlePVD4Object(x);
+object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
+A=[-1,0,0.0193,0;
+    0,-1,0.00954,0;];
+B=[0;0];
 Aeq=[];
 Beq=[];
-low_bou=[13,0];
-up_bou=[100,100];
-nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
-nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+low_bou=[0,0,0,0];
+up_bou=[1,1,50,240];
+nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
 cheapcon_function=[];
 model_function=[];
 
@@ -100,7 +114,7 @@ delete('result_total.txt');
 
 [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],200,300)
+    cheapcon_function,[],50,300)
 result_x_best=output.result_x_best;
 result_fval_best=output.result_fval_best;
 
@@ -358,15 +372,15 @@ while ~done
         cheapcon_function,nonlcon_torlance);
     
     if INFORMATION_FLAG
-%         fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
+        fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
         if infor_search_flag == 0
-%             fprintf('global x:          %s\n',num2str(x_global_infill));
+            fprintf('global x:          %s\n',num2str(x_global_infill));
             fprintf('global value:      %f\n',fval_global_infill);
-%             fprintf('global violation:  %s  %s\n',num2str(con_global_infill),num2str(coneq_global_infill));
+            fprintf('global violation:  %s  %s\n',num2str(con_global_infill),num2str(coneq_global_infill));
         else
-%             fprintf('local  x:          %s\n',num2str(x_local_infill));
+            fprintf('local  x:          %s\n',num2str(x_local_infill));
             fprintf('local  value:      %f\n',fval_local_infill);
-%             fprintf('local  violation:  %s  %s\n',num2str(con_local_infill),num2str(coneq_local_infill));
+            fprintf('local  violation:  %s  %s\n',num2str(con_local_infill),num2str(coneq_local_infill));
         end
         fprintf('\n');
     end

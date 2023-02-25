@@ -64,17 +64,31 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=2;
-object_function=@(x) benchmark.singleG06Object(x);
-object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
-A=[];
-B=[];
+% variable_number=2;
+% object_function=@(x) benchmark.singleG06Object(x);
+% object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=[13,0];
+% up_bou=[100,100];
+% nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
+% nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+% cheapcon_function=[];
+% model_function=[];
+
+variable_number=4;
+object_function=@(x) benchmark.singlePVD4Object(x);
+object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
+A=[-1,0,0.0193,0;
+    0,-1,0.00954,0;];
+B=[0;0];
 Aeq=[];
 Beq=[];
-low_bou=[13,0];
-up_bou=[100,100];
-nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
-nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+low_bou=[0,0,0,0];
+up_bou=[1,1,50,240];
+nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
 cheapcon_function=[];
 model_function=[];
 
@@ -177,15 +191,13 @@ if isempty(iteration_max)
     iteration_max=100;
 end
 
+% hyper parameter
 sample_number_initial=min((variable_number+1)*(variable_number+2)/2,5*variable_number);
 sample_number_iteration=variable_number;
 sample_number_data=10*sample_number_initial;
 eta=1/variable_number; % space decrease coefficient
 
-% parameter
-scale_SVM=variable_number;
 penalty_SVM=100;
-% kernal_function_FS_FCM=@(sq) exp(-sq/2/0.1^2);
 m=2; % clustering parameter
 
 filter_torlance=1e-3;
@@ -283,14 +295,14 @@ while ~done
         coneq_max_list=[];
         coneq_nomlz_list=[];
     end
-    
+
     % step 4
     % generate ERBF_QP model use normalization fval
     %     [ERBF_model_fval,ERBF_model_con,ERBF_model_coneq,output_ERBF]=getEnsemleRadialBasisModel...
     %         (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
     %     object_function_surrogate=output_ERBF.object_function_surrogate;
     %     nonlcon_function_surrogate=output_ERBF.nonlcon_function_surrogate;
-    
+
     [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output_radialbasis]=getRadialBasisModel...
         (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
     object_function_surrogate=output_radialbasis.object_function_surrogate;
@@ -306,7 +318,7 @@ while ~done
     [x_potential,~,exitflag,~]=findMinMSP...
         (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
         cheapcon_function,nonlcon_torlance_surrogate);
-    
+
     if exitflag == -2
         % optimal feasiblilty if do not exist feasible point
         object_nonlcon_function_surrogate=@(x) objectNonlconFunctionSurrogate(x,nonlcon_function_surrogate);
@@ -314,7 +326,7 @@ while ~done
             (object_nonlcon_function_surrogate,variable_number,low_bou,up_bou,[],...
             cheapcon_function,nonlcon_torlance_surrogate);
     end
-    
+
     % check x_potential if exist in data library
     % if not, updata data libraray
     [x_potential,fval_potential,con_potential,coneq_potential,NFE_p,repeat_index]=dataLibraryUpdataProtect...
@@ -341,7 +353,7 @@ while ~done
         coneq_potential_nomlz=(coneq_potential./coneq_max_list)*10;
         coneq_nomlz_list=[coneq_nomlz_list;coneq_potential_nomlz];
     end
-    
+
     % when x_potential is exist in data library, x_potential_add will be
     % empty, this times we will use origin point data
     if isempty(x_potential)
@@ -358,18 +370,18 @@ while ~done
             coneq_potential=[];
         end
     end
-    
+
     if DRAW_FIGURE_FLAG && variable_number < 3
         interpVisualize(radialbasis_model_fval,low_bou,up_bou);
         line(x_potential(1),x_potential(2),fval_potential/fval_max*10,'Marker','o','color','r','LineStyle','none')
     end
-    
+
     % step 6
     % find best result to record
     [x_best,fval_best,con_best,coneq_best]=findMinRaw...
         (x_list,fval_list,con_list,coneq_list,...
         cheapcon_function,nonlcon_torlance);
-    
+
     if INFORMATION_FLAG
         fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
         fprintf('current x:          %s\n',num2str(x_potential));
@@ -377,16 +389,16 @@ while ~done
         fprintf('current violation:  %s  %s\n',num2str(con_potential),num2str(coneq_potential));
         fprintf('\n');
     end
-    
+
     result_x_best(iteration,:)=x_best;
     result_fval_best(iteration,:)=fval_best;
     iteration=iteration+1;
-    
+
     % forced interrupt
     if iteration > iteration_max || NFE >= NFE_max
         done=1;
     end
-    
+
     % convergence judgment
     if CONVERGENCE_JUDGMENT_FLAG
         if (iteration > 2 && ...
@@ -404,198 +416,195 @@ while ~done
             end
         end
     end
-    
-    % step 7
-    % using SVM to identify area which is interesting
-    if expensive_nonlcon_flag
-        % because data prefer getting better
-        filter_index_list=[];% filter point list
-        feasible_index_list=[];% feasible point list
-        
-        % generate filter
-        for x_index=1:size(x_list,1)
-            con_x_nomlz=[];
-            if ~isempty(con_nomlz_list)
-                con_x_nomlz=max(con_nomlz_list(x_index,:));
-            end
-            coneq_x_nomlz=[];
-            if ~isempty(coneq_nomlz_list)
-                coneq_x_nomlz=max(abs(coneq_nomlz_list(x_index,:)));
-            end
-            total_con_x_nomlz=max([con_x_nomlz;coneq_x_nomlz]);
-            
-            % only with constraint will add into filter
-            if (total_con_x_nomlz > filter_torlance)
-                add_filter_flag=1;
-                
-                filter_index_list_unit=1;
-                while filter_index_list_unit <= length(filter_index_list)
-                    x_filter_index=filter_index_list(filter_index_list_unit,:);
-                    
-                    % get h(x) of x and x_filter
-                    con_filter_nomlz=[];
-                    if ~isempty(con_nomlz_list)
-                        con_filter_nomlz=max(con_nomlz_list(x_filter_index,:));
-                    end
-                    coneq_filter_nomlz=[];
-                    if ~isempty(coneq_nomlz_list)
-                        coneq_filter_nomlz=max(coneq_nomlz_list(x_filter_index,:));
-                    end
-                    total_con_filter_nomlz=max([con_filter_nomlz;coneq_filter_nomlz]);
-                    
-                    % if cannot improve filter, reject it
-                    if (fval_nomlz_list(x_index) > fval_nomlz_list(x_filter_index)) && ...
-                            (total_con_x_nomlz > total_con_filter_nomlz)
-                        add_filter_flag=0;
-                        break;
-                    end
-                    
-                    % if better than filter, reject filter
-                    if (fval_nomlz_list(x_index) < fval_nomlz_list(x_filter_index)) && ...
-                            (total_con_x_nomlz < total_con_filter_nomlz)
-                        filter_index_list(filter_index_list_unit)=[];
-                        filter_index_list_unit=filter_index_list_unit-1;
-                    end
-                    
-                    filter_index_list_unit=filter_index_list_unit+1;
-                end
-                % add into filter list if possible
-                if add_filter_flag
-                    filter_index_list=[filter_index_list;x_index];
-                end
-            else
-                feasible_index_list=[feasible_index_list;x_index];
-            end
-        end
-        %         last_end_index=size(x_list,1);
-        if length(feasible_index_list) > 0.2*size(x_list,1)
-            filter_torlance=filter_torlance/2;
-        end
-        
-        fval_label=zeros(size(x_list,1),1);
-        fval_label(filter_index_list)=1;
-        
-        % feasible point set label 1
-        fval_label(feasible_index_list)=1;
-        
-        % use filter and train SVM
-        kernel_function_SVM=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*scale_SVM);
-        [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-            (x_list,fval_label,penalty_SVM,low_bou,up_bou,kernel_function_SVM);
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            classifySupportVectorMachineVisualization...
-                (SVM_model,[13;0],[15;2]);
-        end
-        
-        % get data to obtain clustering center
-        x_sup_list=[];
-        for x_index=1:sample_number_data
-            if  SVM_predict_function(x_data_list(x_index,:)')==1
-                x_sup_list=[x_sup_list;x_data_list(x_index,:)];
-            end
-        end
-        
-        if isempty(x_sup_list)
-            % updata SVM parameter
-            if scale_SVM < 1e3
-                scale_SVM=scale_SVM*sqrt(10);
-            elseif penalty_SVM < 1e3
-                penalty_SVM=penalty_SVM*sqrt(10);
-            end
-            
-            % no center found use filter point
-            if isempty(feasible_index_list)
-                if ~isempty(con_nomlz_list)
-                    con_filter_nomlz_list=con_nomlz_list(filter_index_list);
-                else
-                    con_filter_nomlz_list=[];
-                end
-                if ~isempty(coneq_nomlz_list)
-                    coneq_filter_nomlz_list=coneq_nomlz_list(filter_index_list);
-                else
-                    coneq_filter_nomlz_list=[];
-                end
-                max_totalcon_list=max([con_filter_nomlz_list,coneq_filter_nomlz_list],[],2);
-                [~,filter_min_index]=min(max_totalcon_list);
-                x_center=x_list(filter_index_list(filter_min_index),:)';
-            else
-                [~,min_fval_index]=min(fval_list(feasible_index_list));
-                x_center=x_list(feasible_index_list(min_fval_index),:)';
-            end
-        end
-    else
-        % interset sampling
-        delta_add=0.1;
-%         fval_thresh=min(fval_list)+(eta-delta_add)*(max(fval_list)-min(fval_list));
-        fval_sort=sort(fval_list);
-        index=floor(size(fval_list,1)/2);
-        fval_thresh=fval_sort(index);
-        x_sup_list=[];
-        
-        while size(x_sup_list,1) < sample_number_initial/2
-            % step 7-1
-            % classify exist data
-%             fval_thresh=fval_thresh+delta_add*(max(fval_list)-min(fval_list));
-            fval_label=zeros(size(x_list,1),1);
+
+    % Interest space sampling
+    if ~done
+
+        % step 7
+        % using SVM to identify area which is interesting
+        if expensive_nonlcon_flag
+            % because data prefer getting better
+            filter_index_list=[];% filter point list
+            feasible_index_list=[];% feasible point list
+
+            % generate filter
             for x_index=1:size(x_list,1)
-                if fval_list(x_index) <= fval_thresh
-                    fval_label(x_index)=1;
-                else
-                    fval_label(x_index)=0;
+                con_x_nomlz=[];
+                if ~isempty(con_nomlz_list)
+                    con_x_nomlz=max(con_nomlz_list(x_index,:));
                 end
+                coneq_x_nomlz=[];
+                if ~isempty(coneq_nomlz_list)
+                    coneq_x_nomlz=max(abs(coneq_nomlz_list(x_index,:)));
+                end
+                total_con_x_nomlz=max([con_x_nomlz;coneq_x_nomlz]);
+
+                % only with constraint will add into filter
+                if (total_con_x_nomlz > filter_torlance)
+                    add_filter_flag=1;
+
+                    filter_index_list_unit=1;
+                    while filter_index_list_unit <= length(filter_index_list)
+                        x_filter_index=filter_index_list(filter_index_list_unit,:);
+
+                        % get h(x) of x and x_filter
+                        con_filter_nomlz=[];
+                        if ~isempty(con_nomlz_list)
+                            con_filter_nomlz=max(con_nomlz_list(x_filter_index,:));
+                        end
+                        coneq_filter_nomlz=[];
+                        if ~isempty(coneq_nomlz_list)
+                            coneq_filter_nomlz=max(coneq_nomlz_list(x_filter_index,:));
+                        end
+                        total_con_filter_nomlz=max([con_filter_nomlz;coneq_filter_nomlz]);
+
+                        % if cannot improve filter, reject it
+                        if (fval_nomlz_list(x_index) > fval_nomlz_list(x_filter_index)) && ...
+                                (total_con_x_nomlz > total_con_filter_nomlz)
+                            add_filter_flag=0;
+                            break;
+                        end
+
+                        % if better than filter, reject filter
+                        if (fval_nomlz_list(x_index) < fval_nomlz_list(x_filter_index)) && ...
+                                (total_con_x_nomlz < total_con_filter_nomlz)
+                            filter_index_list(filter_index_list_unit)=[];
+                            filter_index_list_unit=filter_index_list_unit-1;
+                        end
+
+                        filter_index_list_unit=filter_index_list_unit+1;
+                    end
+                    % add into filter list if possible
+                    if add_filter_flag
+                        filter_index_list=[filter_index_list;x_index];
+                    end
+                else
+                    feasible_index_list=[feasible_index_list;x_index];
+                end
+            end
+            %         last_end_index=size(x_list,1);
+            if length(feasible_index_list) > 0.2*size(x_list,1)
+                filter_torlance=filter_torlance/2;
             end
 
-            % step 7-2
-            % get a large number of x point, use SVM to predict x point
+            fval_label=zeros(size(x_list,1),1);
+            fval_label(filter_index_list)=1;
+
+            % feasible point set label 1
+            fval_label(feasible_index_list)=1;
+
+            % use filter and train SVM
             [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
                 (x_list,fval_label,penalty_SVM,low_bou,up_bou);
             if DRAW_FIGURE_FLAG && variable_number < 3
-                classifyVisualization...
+                classifySupportVectorMachineVisualization...
                     (SVM_model,low_bou,up_bou);
             end
+
+            % get data to obtain clustering center
+            x_sup_list=[];
             for x_index=1:sample_number_data
-                if  SVM_predict_function(x_data_list(x_index,:)')==1
+                if  SVM_predict_function(x_data_list(x_index,:))==1
                     x_sup_list=[x_sup_list;x_data_list(x_index,:)];
                 end
             end
+
+            if isempty(x_sup_list)
+                % no center found use filter point
+                if isempty(feasible_index_list)
+                    if ~isempty(con_nomlz_list)
+                        con_filter_nomlz_list=con_nomlz_list(filter_index_list);
+                    else
+                        con_filter_nomlz_list=[];
+                    end
+                    if ~isempty(coneq_nomlz_list)
+                        coneq_filter_nomlz_list=coneq_nomlz_list(filter_index_list);
+                    else
+                        coneq_filter_nomlz_list=[];
+                    end
+                    max_totalcon_list=max([con_filter_nomlz_list,coneq_filter_nomlz_list],[],2);
+                    [~,filter_min_index]=min(max_totalcon_list);
+                    x_center=x_list(filter_index_list(filter_min_index),:);
+                else
+                    [~,min_fval_index]=min(fval_list(feasible_index_list));
+                    x_center=x_list(feasible_index_list(min_fval_index),:);
+                end
+            end
+        else
+            % interset sampling
+            delta_add=0.1;
+            %         fval_thresh=min(fval_list)+(eta-delta_add)*(max(fval_list)-min(fval_list));
+            fval_sort=sort(fval_list);
+            index=floor(size(fval_list,1)/2);
+            fval_thresh=fval_sort(index);
+            x_sup_list=[];
+
+            while size(x_sup_list,1) < sample_number_initial/2
+                % step 7-1
+                % classify exist data
+                %             fval_thresh=fval_thresh+delta_add*(max(fval_list)-min(fval_list));
+                fval_label=zeros(size(x_list,1),1);
+                for x_index=1:size(x_list,1)
+                    if fval_list(x_index) <= fval_thresh
+                        fval_label(x_index)=1;
+                    else
+                        fval_label(x_index)=0;
+                    end
+                end
+
+                % step 7-2
+                % get a large number of x point, use SVM to predict x point
+                [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
+                    (x_list,fval_label,penalty_SVM,low_bou,up_bou);
+                if DRAW_FIGURE_FLAG && variable_number < 3
+                    classifyVisualization...
+                        (SVM_model,low_bou,up_bou);
+                end
+                for x_index=1:sample_number_data
+                    if  SVM_predict_function(x_data_list(x_index,:)')==1
+                        x_sup_list=[x_sup_list;x_data_list(x_index,:)];
+                    end
+                end
+            end
         end
-    end
-    
-    % step 7-3
-    % calculate clustering center
-    if ~isempty(x_sup_list)
-        FC_model=classifyFuzzyClustering...
-            (x_sup_list,1,low_bou,up_bou,m);
-        x_center=FC_model.center_list;
-    end
-    
-    % updata ISR
-    x_potential_nomlz=(x_potential-low_bou)./(up_bou-low_bou);
-    x_center_nomlz=(x_center-low_bou)./(up_bou-low_bou);
-    bou_range_nomlz=eta*norm(x_potential_nomlz-x_center_nomlz,2);
-    if bou_range_nomlz < 1e-2
-        bou_range_nomlz=1e-2;
-    end
-    bou_range=bou_range_nomlz.*(up_bou-low_bou);
-    low_bou_ISR=x_potential-bou_range;
-    low_bou_ISR=max(low_bou_ISR,low_bou);
-    up_bou_ISR=x_potential+bou_range;
-    up_bou_ISR=min(up_bou_ISR,up_bou);
-    
-    if DRAW_FIGURE_FLAG && variable_number < 3
-        bou_line=[low_bou_ISR;[low_bou_ISR(1),up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1),low_bou_ISR(2)];low_bou_ISR];
-        line(bou_line(:,1),bou_line(:,2));
-        line(x_potential(1),x_potential(2),'Marker','x')
-    end
-    
-    % sampling in ISR
-    [x_list_exist,~,~,~]=dataLibraryLoad...
-        (data_library_name,low_bou_ISR,up_bou_ISR);
-%     [~,x_updata_list,~]=getLatinHypercube...
-%         (sample_number_iteration+size(x_list_exist,1),variable_number,x_list_exist,...
-%         low_bou_ISR,up_bou_ISR,cheapcon_function);
+
+        % step 7-3
+        % calculate clustering center
+        if ~isempty(x_sup_list)
+            FC_model=classifyFuzzyClustering...
+                (x_sup_list,1,low_bou,up_bou,m);
+            x_center=FC_model.center_list;
+        end
+
+        % updata ISR
+        x_potential_nomlz=(x_potential-low_bou)./(up_bou-low_bou);
+        x_center_nomlz=(x_center-low_bou)./(up_bou-low_bou);
+        bou_range_nomlz=eta*norm(x_potential_nomlz-x_center_nomlz,2);
+        if bou_range_nomlz < 1e-2
+            bou_range_nomlz=1e-2;
+        end
+        bou_range=bou_range_nomlz.*(up_bou-low_bou);
+        low_bou_ISR=x_potential-bou_range;
+        low_bou_ISR=max(low_bou_ISR,low_bou);
+        up_bou_ISR=x_potential+bou_range;
+        up_bou_ISR=min(up_bou_ISR,up_bou);
+
+        if DRAW_FIGURE_FLAG && variable_number < 3
+            bou_line=[low_bou_ISR;[low_bou_ISR(1),up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1),low_bou_ISR(2)];low_bou_ISR];
+            line(bou_line(:,1),bou_line(:,2));
+            line(x_potential(1),x_potential(2),'Marker','x')
+        end
+
+        % sampling in ISR
+        [x_list_exist,~,~,~]=dataLibraryLoad...
+            (data_library_name,low_bou_ISR,up_bou_ISR);
+        %     [~,x_updata_list,~]=getLatinHypercube...
+        %         (sample_number_iteration+size(x_list_exist,1),variable_number,x_list_exist,...
+        %         low_bou_ISR,up_bou_ISR,cheapcon_function);
         x_updata_list=(up_bou_ISR-low_bou_ISR).*lhsdesign(sample_number_iteration,variable_number)+low_bou_ISR;
-    
+
+    end
+
     x_potential_old=x_potential;
     fval_potential_old=fval_potential;
     fval_best_old=fval_best;
@@ -643,7 +652,7 @@ output.result_fval_best=result_fval_best;
         x_updata_list=[];fval_updata_list=[];con_updata_list=[];coneq_updata_list=[];repeat_index=[];
         for x_index__=1:size(x_add_list,1)
             x_updata__=x_add_list(x_index__,:);
-            
+
             % check x_potential if exist in data library
             % if not, updata data libraray
             distance__=sum((abs(x_updata__-x_list)./(up_bou-low_bou)),2);
@@ -786,7 +795,7 @@ if ~isempty(index)
     if ~isempty(coneq_list)
         coneq_list=coneq_list(index,:);
     end
-    
+
     % min fval
     [fval_best,index_best]=min(fval_list);
     x_best=x_list(index_best,:)';
@@ -878,7 +887,7 @@ while ~done
                 1/sum((X_center_dis_sq(x_index,classify_index)./X_center_dis_sq(x_index,:)).^(1/(m-1)));
         end
     end
-    
+
     % updata center_list
     center_list_old=center_list;
     for classify_index=1:classify_number
@@ -886,7 +895,7 @@ while ~done
             sum((U(:,classify_index)).^m.*X_nomlz,1)./...
             sum((U(:,classify_index)).^m,1);
     end
-    
+
     % updata X_center_dis_sq
     for x_index=1:x_number
         for classify_index=1:classify_number
@@ -895,19 +904,19 @@ while ~done
         end
         [~,x_class_list(x_index)]=min(X_center_dis_sq(x_index,:));
     end
-    
-%     plot(center_list(:,1),center_list(:,2));
-    
+
+    %     plot(center_list(:,1),center_list(:,2));
+
     % forced interrupt
     if iteration > iteration_max
         done=1;
     end
-    
+
     % convergence judgment
     if sum(sum(center_list_old-center_list).^2) < torlance
         done=1;
     end
-    
+
     iteration=iteration+1;
     fval_loss_list(iteration)=sum(sum(U.^m.*X_center_dis_sq));
 end
@@ -1030,7 +1039,7 @@ SVM_model.predict_function=predict_function;
         % x input is colume vector
         %
         x=x(:);
-        
+
         x_number__=size(X_nomlz,1);
         x_nomlz=(x-low_bou')./(up_bou'-low_bou');
         X_inner_product__=zeros(x_number__,1);
@@ -1207,10 +1216,10 @@ radialbasis_model.predict_function=predict_function;
         % Copyright 2022 Adel
         %
         rdibas_matrix=basis_function(X_dis);
-        
+
         % stabilize matrix
         rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
-        
+
         % solve beta
         beta=rdibas_matrix\Y;
     end
@@ -1224,7 +1233,7 @@ radialbasis_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        
+
         % calculate distance
         X_dis_pred=zeros(x_pred_num,x_num);
         for vari_index=1:vari_num
@@ -1232,10 +1241,10 @@ radialbasis_model.predict_function=predict_function;
                 (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
         end
         X_dis_pred=sqrt(X_dis_pred);
-        
+
         % predict variance
         Y_pred=basis_function(X_dis_pred)*beta;
-        
+
         % normalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
     end
@@ -1452,7 +1461,7 @@ for model_index=1:model_number
     beta_list(:,model_index)=beta;
     rdibas_matrix_list(:,:,model_index)=rdibas_matrix;
     inv_rdibas_matrix_list(:,:,model_index)=inv_rdibas_matrix;
-    
+
     model_error_list(model_index,:)=(beta./...
         diag(inv_rdibas_matrix))';
 end
@@ -1505,7 +1514,7 @@ ensemleradialbasis_model.predict_function=predict_function;
             (X_dis,Y,basis_function,x_number);
         U=beta__./diag(inv_rdibas_matrix__);
         fval=sum(U.^2);
-        
+
         % calculate gradient
         if nargout > 1
             inv_rdibas_matrix_gradient=-inv_rdibas_matrix__*...
@@ -1519,7 +1528,7 @@ ensemleradialbasis_model.predict_function=predict_function;
                     beta__(x_index)*(I(x_index,:)*inv_rdibas_matrix_gradient*I(:,x_index))/...
                     inv_rdibas_matrix__(x_index,x_index)^2;
             end
-            
+
             gradient=2*sum(U.*U_gradient);
         end
     end
@@ -1532,10 +1541,10 @@ ensemleradialbasis_model.predict_function=predict_function;
         % Copyright 2022 Adel
         %
         rdibas_matrix=basis_function(X_dis);
-        
+
         % stabilize matrix
         rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
-        
+
         % solve beta
         inv_rdibas_matrix=rdibas_matrix\eye(x_number);
         beta=inv_rdibas_matrix*Y;
@@ -1561,28 +1570,28 @@ ensemleradialbasis_model.predict_function=predict_function;
                 end
             end
         end
-        
+
         INFORMATION_FLAG=0; % whether show information
-        
+
         draw_range=0.001;
         draw_interval=draw_range*0.02;
         DRAW_FLAG=0;
-        
+
         if isempty(iteration_max)
             iteration_max=10*length(x_initial);
         end
-        
+
         if isempty(torlance)
             torlance=1e-6;
         end
-        
+
         x=x_initial;
         done=0;
         iteration=0;
         NFE=0;
         result_x_list=[];
         result_fval_list=[];
-        
+
         % decide which turn to search
         [fval,gradient]=object_function(x);NFE=NFE+1;
         result_x_list=[result_x_list;x];
@@ -1596,12 +1605,12 @@ ensemleradialbasis_model.predict_function=predict_function;
             x_best=x;
             favl_best=fval;
         end
-        
+
         x_old=x;
         fval_old=fval;
         gradient_old=gradient;
         iteration=iteration+1;
-        
+
         % move forward to first point
         if ~done
             x=x_old+direction*0.01;
@@ -1622,41 +1631,41 @@ ensemleradialbasis_model.predict_function=predict_function;
             end
             iteration=iteration+1;
         end
-        
+
         % main loop for cubic interp
         while ~done
-            
+
             x_base=x_old;
             x_relative=x/x_old;
             interp_matrix=[1,1,1,1;
                 3,2,1,0;
                 x_relative^3,x_relative^2,x_relative,1;
                 3*x_relative^2,2*x_relative,1,0];
-            
+
             if rcond(interp_matrix) < eps
                 disp('error');
             end
-            
+
             interp_value=[fval_old;gradient_old*x_base;fval;gradient*x_base];
             [x_inter_rel,coefficient_cubic]=minCubicInterpolate(interp_matrix,interp_value);
             x_inter=x_inter_rel*x_base;
-            
+
             if DRAW_FLAG
                 x_draw=1:direction*draw_interval:direction*draw_range;
                 x_draw=x_draw/x_base;
                 line(x_draw*x_base,coefficient_cubic(1)*x_draw.^3+coefficient_cubic(2)*x_draw.^2+...
                     coefficient_cubic(3)*x_draw+coefficient_cubic(4));
             end
-            
+
             % limit search space, process constraints
             if x_inter > up_bou
                 x_inter=up_bou;
             elseif x_inter < low_bou
                 x_inter=low_bou;
             end
-            
+
             [fval_inter,gradient_inter]=object_function(x_inter);NFE=NFE+1;
-            
+
             % only work for one best(convex)
             % three situation discuss
             if gradient < 0
@@ -1670,11 +1679,11 @@ ensemleradialbasis_model.predict_function=predict_function;
                     gradient_old=gradient;
                 end
             end
-            
+
             x=x_inter;
             fval=fval_inter;
             gradient=gradient_inter;
-            
+
             quit_flag=judgeQuit...
                 (x,x_old,fval,fval_old,gradient,torlance,iteration,iteration_max);
             if quit_flag
@@ -1682,19 +1691,19 @@ ensemleradialbasis_model.predict_function=predict_function;
                 x_best=x;
                 favl_best=fval;
             end
-            
+
             result_x_list=[result_x_list;x];
             result_fval_list=[result_fval_list;fval];
             iteration=iteration+1;
         end
         output.result_x_list=result_x_list;
         output.result_fval_list=result_fval_list;
-        
+
         function [lamada,coefficient_cubic]=minCubicInterpolate(interpolate_matrix,interpolate_value)
             % calculate min cubic curve
             %
             coefficient_cubic=interpolate_matrix\interpolate_value;
-            
+
             temp_sqrt=4*coefficient_cubic(2)^2-12*coefficient_cubic(1)*coefficient_cubic(3);
             if temp_sqrt>=0
                 temp_lamada=-coefficient_cubic(2)/3/coefficient_cubic(1)+...
@@ -1737,7 +1746,7 @@ ensemleradialbasis_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        
+
         % calculate distance
         X_dis_pred=zeros(x_pred_num,x_num);
         for vari_index=1:vari_num
@@ -1754,7 +1763,7 @@ ensemleradialbasis_model.predict_function=predict_function;
             y_pred_nomlz_list(:,model_index__)=basis_function__(X_dis_pred)*beta__;
         end
         Y_pred_nomlz=y_pred_nomlz_list*w;
-        
+
         % normalize data
         Y_pred=Y_pred_nomlz*stdD_Y+aver_Y;
     end
@@ -1797,13 +1806,13 @@ for x_index=1:x_number
     fval_list=[fval_list;fval(:)'];
     con_list=[con_list;con(:)'];
     coneq_list=[coneq_list;coneq(:)'];
-    
+
     % write data to txt_optimalSurrogateSADEKTS
     fprintf(file_optimalSurrogate_output,'%d ',variable_number);
     fprintf(file_optimalSurrogate_output,'%d ',length(fval));
     fprintf(file_optimalSurrogate_output,'%d ',length(con));
     fprintf(file_optimalSurrogate_output,'%d ',length(coneq));
-    
+
     fprintf(file_optimalSurrogate_output,x_format,x);
     fval_format=repmat(fval_format_base,1,length(fval));
     fprintf(file_optimalSurrogate_output,fval_format,fval);
@@ -1812,13 +1821,13 @@ for x_index=1:x_number
     fval_format=repmat(fval_format_base,1,length(coneq));
     fprintf(file_optimalSurrogate_output,fval_format,coneq);
     fprintf(file_optimalSurrogate_output,'\n');
-    
+
     % write data to txt_result
     fprintf(file_result,'%d ',variable_number);
     fprintf(file_result,'%d ',length(fval));
     fprintf(file_result,'%d ',length(con));
     fprintf(file_result,'%d ',length(coneq));
-    
+
     fprintf(file_result,x_format,x);
     fval_format=repmat(fval_format_base,1,length(fval));
     fprintf(file_result,fval_format,fval);
@@ -1868,15 +1877,15 @@ if exist(data_library_name,'file')==2
         fval_list=[];
         con_list=[];
         coneq_list=[];
-        
+
         for data_index=1:size(data_list,1)
             data=data_list(data_index,:);
-            
+
             variable_number=data(1);
             fval_number=data(2);
             con_number=data(3);
             coneq_number=data(4);
-            
+
             base=5;
             x=data(base:base+variable_number-1);
             judge=sum(x < low_bou)+sum(x > up_bou);
@@ -1989,13 +1998,13 @@ fval_list=zeros(x_new_number,1);
 gradient_list=zeros(x_new_number,variable_number);
 while iteration < iteration_max
     % change each x place by newton methods
-    for x_index=1:x_new_number    
+    for x_index=1:x_new_number
         % get gradient
         [fval_list(x_index,1),gradient_list(x_index,:)]=objectFunctionXPlace...
             (X_new_nomlz(x_index,:),[X_new_nomlz(1:x_index-1,:);X_new_nomlz(x_index+1:end,:);X_exist_nomlz],...
             sample_number,variable_number,low_bou_nomlz-0.1/variable_number,up_bou_nomlz+0.1/variable_number,cheapcon_function);
     end
-    
+
     % normalize fval
     fval_list=fval_list/max(fval_list);
     for x_index=1:x_new_number
@@ -2007,7 +2016,7 @@ while iteration < iteration_max
         x=max(x,low_bou_nomlz);
         X_new_nomlz(x_index,:)=x;
     end
-    
+
     iteration=iteration+1;
 end
 distance_min_nomlz=getMinDistance([X_new_nomlz;X_exist_nomlz]);
@@ -2023,28 +2032,28 @@ X=[X_new;X_exist];
         %
         a__=10/variable_number;
         a_bou__=30/sample_number;
-        
+
         sign__=((x > X_surplus)-0.5)*2;
-        
+
         xi__=-a__*(x-X_surplus).*sign__;
         sum_xi__=sum(xi__,2);
         psi__=a__*(low_bou-x)*a_bou__;
         zeta__=a__*(x-up_bou)*a_bou__;
-        
-%         exp_xi__=exp(xi__);
+
+        %         exp_xi__=exp(xi__);
         exp_sum_xi__=exp(sum_xi__);
         exp_psi__=exp(psi__);
         exp_zeta__=exp(zeta__);
-        
+
         % get fval
         fval=sum(exp_sum_xi__,1)+...
             sum(exp_psi__+exp_zeta__,2);
-        
+
         % get gradient
         gradient=sum(-a__*sign__.*exp_sum_xi__,1)+...
             -a__*exp_psi__*a_bou__+...
             a__*exp_zeta__*a_bou__;
-        
+
         if ~isempty(cheapcon_function)
             fval_con=cheapcon_function(x);
             fval=fval+fval_con;
@@ -2052,7 +2061,7 @@ X=[X_new;X_exist];
                 (cheapcon_function,x,fval_con,variable_number);
             gradient=gradient+gradient_con;
         end
-        
+
         function [gradient]=differ(differ_function,x,fval,variable_number,step)
             % differ function to get gradient and hessian
             % gradient is rank vector
@@ -2062,17 +2071,17 @@ X=[X_new;X_exist];
             end
             fval__=zeros(variable_number,2); % backward is 1, forward is 2
             gradient=zeros(1,variable_number);
-            
+
             % fval and gradient
             for variable_index__=1:variable_number
                 x_forward__=x;
                 x_backward__=x;
                 x_backward__(variable_index__)=x_backward__(variable_index__)-step;
                 fval__(variable_index__,1)=differ_function(x_backward__);
-                
+
                 x_forward__(variable_index__)=x_forward__(variable_index__)+step;
                 fval__(variable_index__,2)=differ_function(x_forward__);
-                
+
                 gradient(variable_index__)=...
                     (fval__(variable_index__,2)-fval__(variable_index__,1))/2/step;
             end
@@ -2081,7 +2090,7 @@ X=[X_new;X_exist];
     function distance_min__=getMinDistance(x_list__)
         % get distance min from x_list
         %
-        
+
         % sort x_supply_list_initial to decrese distance calculate times
         x_list__=sortrows(x_list__,1);
         sample_number__=size(x_list__,1);
