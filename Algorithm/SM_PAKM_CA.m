@@ -182,7 +182,7 @@ end
 
 DRAW_FIGURE_FLAG=0; % whether draw data
 INFORMATION_FLAG=1; % whether print data
-CONVERGENCE_JUDGMENT_FLAG=1; % whether judgment convergence
+CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 if isempty(iteration_max)
     iteration_max=100;
@@ -324,14 +324,14 @@ while ~done
     end
     [x_best_pred,~,exitflag,~]=findMinMSP...
         (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
-        cheapcon_function,nonlcon_torlance_surrogate);
+        cheapcon_function,nonlcon_torlance);
 
     if exitflag == -2
         % optimal feasiblilty if do not exist feasible point
         object_nonlcon_function_surrogate=@(x) objectNonlconFunctionSurrogate(x,nonlcon_function_surrogate);
         [x_best_pred,~,exitflag,~]=findMinMSP...
             (object_nonlcon_function_surrogate,variable_number,low_bou,up_bou,[],...
-            cheapcon_function,nonlcon_torlance_surrogate);
+            cheapcon_function,nonlcon_torlance);
     end
 
     % check x_potential if exist in data library
@@ -447,26 +447,22 @@ while ~done
 
         % step 2
         % contruct EI, PF function
-        object_function_EI=@(x) EIFunction(object_function_surrogate,x,fval_best);
-        object_function_PF=@(x) PFFunction(object_function_surrogate_KS,x);
+        object_function_EI=@(X) EIFunction(object_function_surrogate,X,fval_best/fval_max);
+        object_function_PF=@(X) PFFunction(object_function_surrogate_KS,X);
+        object_function_IF=@(X) IFFunction(x_best_pred,X,exp(kriging_model_fval.hyp),variable_number);
 
         % step 3
         % multi objective optimization to get pareto front
-        object_function_PCFEI=@(x) [object_function_EI(x),object_function_PF(x)];
+        object_function_PCFEI=@(x) [-object_function_EI(x),-object_function_PF(x)];
         gamultiobj_option=optimoptions('gamultiobj','Display','none');
         [x_pareto_list,fval_pareto_list,exitflag,output_gamultiobj]=gamultiobj...'
             (object_function_PCFEI,variable_number,[],[],[],[],low_bou,up_bou,[],gamultiobj_option);
 
         % step 4
         % base on PCFEI value to get first sample_number_iteration point
-        EI_list=fval_pareto_list(:,1);
-        PF_list=fval_pareto_list(:,2);
-        theta=exp(kriging_model_fval.hyp);
-        IF_list=zeros(size(x_pareto_list,1),1);
-        for variable_index=1:variable_number
-            IF_list=IF_list+(x_pareto_list(:,variable_index)-x_best_pred(:,variable_index)').^2*theta(variable_index);
-        end
-        IF_list=1-exp(-IF_list);
+        EI_list=-fval_pareto_list(:,1);
+        PF_list=-fval_pareto_list(:,2);
+        IF_list=object_function_IF(x_pareto_list);
         PCFEI_list=EI_list.*PF_list.*IF_list;
         [~,index_list]=sort(PCFEI_list);
         x_updata_list=x_pareto_list(index_list((end+1-sample_number_iteration):end),:);
@@ -538,21 +534,28 @@ output.result_fval_best=result_fval_best;
         end
     end
 
-    function fval=EIFunction(object_function_surrogate,x,fval_min)
+    function fval=EIFunction(object_function_surrogate,X,fval_min)
         % EI function
-        [Fval_pred,Fval_var]=object_function_surrogate(x);
+        [Fval_pred,Fval_var]=object_function_surrogate(X);
         normal_fval=(fval_min-Fval_pred)./sqrt(Fval_var);
         EI_l=(fval_min-Fval_pred).*normcdf(normal_fval);
         EI_g=Fval_var.*normpdf(normal_fval);
         fval=EI_l+EI_g;
     end
 
-    function fval=PFFunction(object_function_surrogate,x)
+    function fval=PFFunction(object_function_surrogate,X)
         % EI function
-        [Con_pred,Con_var]=object_function_surrogate(x);
+        [Con_pred,Con_var]=object_function_surrogate(X);
         fval=normpdf(-Con_pred./sqrt(Con_var));
     end
 
+    function fval=IFFunction(x_best,X,theta,variable_number)
+        fval=zeros(size(X,1),1);
+        for variable_index=1:variable_number
+            fval=fval+(X(:,variable_index)-x_best(:,variable_index)').^2*theta(variable_index);
+        end
+        fval=1-exp(-fval);
+    end
 end
 
 %% auxiliary function

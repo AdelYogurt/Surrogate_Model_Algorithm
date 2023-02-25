@@ -123,7 +123,7 @@ delete(data_library_name);
 delete('result_total.txt');
 [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[])
+    cheapcon_function,[],50)
 
 result_x_best=output.result_x_best;
 result_fval_best=output.result_fval_best;
