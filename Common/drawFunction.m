@@ -54,16 +54,16 @@ switch dimension
     case 2
         d_bou=(up_bou-low_bou)/grid_number;
         [X__,Y__]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        fval__=zeros(grid_number+1,grid_number+1);
+        fval__=zeros(grid_number+1,grid_number+1,2);
         for x_index__=1:grid_number+1
             for y_index__=1:grid_number+1
                 predict_x=([x_index__,y_index__]-1).*d_bou+low_bou;
-                fval__(y_index__,x_index__)=draw_function(predict_x);
+                fval__(y_index__,x_index__,:)=draw_function(predict_x);
             end
         end
         fval__(find(fval__ > Y_max))=Y_max;
         fval__(find(fval__ < Y_min))=Y_min;
-        axes_context=[axes_context;surface(X__,Y__,fval__(:,:),'FaceAlpha',0.5,'EdgeColor','none');];
+        axes_context=[axes_context;surface(X__,Y__,fval__(:,:,1),'FaceAlpha',0.5,'EdgeColor','none');];
         axes_handle.set('Children',axes_context);
         xlabel('X');
         ylabel('Y');

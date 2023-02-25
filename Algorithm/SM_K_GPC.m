@@ -4,16 +4,16 @@ close all hidden;
 
 benchmark=BenchmarkFunction();
 
-% variable_number=2;
-% object_function=@(x) benchmark.singleGPObject(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=[-2,-2];
-% up_bou=[2,2];
-% nonlcon_function=[];
-% cheapcon_function=[];
+variable_number=2;
+object_function=@(x) benchmark.singleGPObject(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2,-2];
+up_bou=[2,2];
+nonlcon_function=[];
+cheapcon_function=[];
 
 % variable_number=2;
 % object_function=@(x) benchmark.singlePKObject(x);
@@ -64,19 +64,19 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=2;
-object_function=@(x) benchmark.singleG06Object(x);
-object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=[13,0];
-up_bou=[100,100];
-nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
-nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
-cheapcon_function=[];
-model_function=[];
+% variable_number=2;
+% object_function=@(x) benchmark.singleG06Object(x);
+% object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=[13,0];
+% up_bou=[100,100];
+% nonlcon_function=@(x) benchmark.singleG06Nonlcon(x);
+% nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
+% cheapcon_function=[];
+% model_function=[];
 
 % variable_number=13;
 % object_function=@benchmark.singleG01Object;
@@ -757,7 +757,7 @@ end
 % add cheap con
 for x_index=1:size(x_list,1)
     if ~isempty(cheapcon_function)
-        [con,coneq]=cheapcon_function(x_list(x_index,:)');
+        [con,coneq]=cheapcon_function(x_list(x_index,:));
         max_cheapcon_list(x_index)=max_cheapcon_list(x_index)+...
             sum(max(con,0))+sum(coneq.*coneq);
     end
@@ -776,26 +776,26 @@ if ~isempty(index)
     if ~isempty(coneq_list)
         coneq_list=coneq_list(index,:);
     end
-    
+
     % min fval
     [fval_best,index_best]=min(fval_list);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 else
     % min consum
     [~,index_best]=min(max_nonlcon_list);
     fval_best=fval_list(index_best);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 end
 end

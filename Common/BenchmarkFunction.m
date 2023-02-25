@@ -462,6 +462,30 @@ classdef BenchmarkFunction < handle
             fval=self.singleG01Object(x)*0.9+0.5;
         end
 
+        function fval=singleWeiObject(self,x)
+            % wei zao thesis
+            %
+            % variable_number=2;
+            % object_function=@(x) benchmark.singleWeiObject(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=[0,0];
+            % up_bou=[3.7,4];
+            % nonlcon_function=@(x) benchmark.singleWeiNonlcon(x);
+            % cheapcon_function=[];
+            %
+            x1=x(:,1);
+            x2=x(:,2);
+            fval=(x1-3.7).^2+(x2-4).^2;
+        end
+        function [con,coneq]=singleWeiNonlcon(self,x)
+            x1=x(:,1);
+            x2=x(:,2);
+            coneq=[];
+            con=[x1.*sin(4*x1)+1.1*x2*sin(2*x2),-x1-x2+3];
+        end
     end
     methods % unconstraint multi objective function
         function fval=multiZDT1Object(self,x)

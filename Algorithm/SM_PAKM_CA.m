@@ -1,3 +1,4 @@
+
 clc;
 clear;
 close all hidden;
@@ -77,6 +78,17 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=@(x) benchmark.singleG06NonlconLow(x);
 % cheapcon_function=[];
 % model_function=[];
+
+% variable_number=2;
+% object_function=@(x) benchmark.singleWeiObject(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=[0,0];
+% up_bou=[3.7,4];
+% nonlcon_function=@(x) benchmark.singleWeiNonlcon(x);
+% cheapcon_function=[];
 
 variable_number=4;
 object_function=@(x) benchmark.singlePVD4Object(x);
@@ -205,6 +217,8 @@ rou_max=64;
 rou_decrease=0.5;
 rou_increase=2;
 
+nomlz_fval=1;
+
 protect_range=1e-4;
 
 data_library_name='optimal_data_library';
@@ -286,52 +300,49 @@ while ~done
 
     % nomalization all data
     fval_max=max(abs(fval_list),[],1);
-    fval_nomlz_list=fval_list./fval_max*10;
+    fval_nomlz_list=fval_list./fval_max*nomlz_fval;
     if ~isempty(con_list)
         con_max_list=max(abs(con_list),[],1);
-        con_nomlz_list=con_list./con_max_list*10;
+        con_nomlz_list=con_list./con_max_list*nomlz_fval;
     else
         con_max_list=[];
         con_nomlz_list=[];
     end
     if ~isempty(coneq_list)
         coneq_max_list=max(abs(coneq_list),[],1);
-        coneq_nomlz_list=coneq_list./coneq_max_list*10;
+        coneq_nomlz_list=coneq_list./coneq_max_list*nomlz_fval;
     else
         coneq_max_list=[];
         coneq_nomlz_list=[];
     end
 
     % step 4
-    % generate ERBF_QP model use normalization fval
-    %     [ERBF_model_fval,ERBF_model_con,ERBF_model_coneq,output_ERBF]=getEnsemleRadialBasisModel...
-    %         (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
-    %     object_function_surrogate=output_ERBF.object_function_surrogate;
-    %     nonlcon_function_surrogate=output_ERBF.nonlcon_function_surrogate;
-
-    [kriging_model_fval,kriging_model_con,kriging_model_coneq,output_radialbasis]=getKrigingModel...
+    [kriging_model_fval,kriging_model_con,kriging_model_coneq,output_kriging]=getKrigingModel...
         (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
         kriging_model_fval,kriging_model_con,kriging_model_coneq);
-    object_function_surrogate=output_radialbasis.object_function_surrogate;
-    nonlcon_function_surrogate=output_radialbasis.nonlcon_function_surrogate;
+    object_function_surrogate=output_kriging.object_function_surrogate;
+    nonlcon_function_surrogate=output_kriging.nonlcon_function_surrogate;
 
     % step 5
     % MSP guideline to obtain x_adapt
-    if expensive_nonlcon_flag
-        nonlcon_torlance_surrogate=min(max(con_nomlz_list,[],2))*(1-NFE/NFE_max)^2;
-    else
-        nonlcon_torlance_surrogate=0;
-    end
+%     if expensive_nonlcon_flag
+%         nonlcon_torlance_surrogate=min(max(con_nomlz_list,[],2))*(1-NFE/NFE_max)^2;
+%     else
+%         nonlcon_torlance_surrogate=0;
+%     end
+    [x_best,fval_best,con_best,coneq_best]=findMinRaw...
+        (x_list,fval_list,con_list,coneq_list,...
+        cheapcon_function,nonlcon_torlance);
     [x_best_pred,~,exitflag,~]=findMinMSP...
         (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
-        cheapcon_function,nonlcon_torlance);
+        cheapcon_function,nonlcon_torlance,x_best);
 
     if exitflag == -2
         % optimal feasiblilty if do not exist feasible point
         object_nonlcon_function_surrogate=@(x) objectNonlconFunctionSurrogate(x,nonlcon_function_surrogate);
         [x_best_pred,~,exitflag,~]=findMinMSP...
             (object_nonlcon_function_surrogate,variable_number,low_bou,up_bou,[],...
-            cheapcon_function,nonlcon_torlance);
+            cheapcon_function,nonlcon_torlance,x_best);
     end
 
     % check x_potential if exist in data library
@@ -349,15 +360,15 @@ while ~done
 
     % normalization fval updata
     if ~isempty(fval_best_pred)
-        fval_potential_nomlz=fval_best_pred/fval_max*10;
+        fval_potential_nomlz=fval_best_pred/fval_max*nomlz_fval;
         fval_nomlz_list=[fval_nomlz_list;fval_potential_nomlz];
     end
     if ~isempty(con_best_pred)
-        con_potential_nomlz=(con_best_pred./con_max_list)*10;
+        con_potential_nomlz=(con_best_pred./con_max_list)*nomlz_fval;
         con_nomlz_list=[con_nomlz_list;con_potential_nomlz];
     end
     if ~isempty(coneq_best_pred)
-        coneq_potential_nomlz=(coneq_best_pred./coneq_max_list)*10;
+        coneq_potential_nomlz=(coneq_best_pred./coneq_max_list)*nomlz_fval;
         coneq_nomlz_list=[coneq_nomlz_list;coneq_potential_nomlz];
     end
 
@@ -380,7 +391,7 @@ while ~done
 
     if DRAW_FIGURE_FLAG && variable_number < 3
         interpVisualize(kriging_model_fval,low_bou,up_bou);
-        line(x_best_pred(1),x_best_pred(2),fval_best_pred/fval_max*10,'Marker','o','color','r','LineStyle','none')
+        line(x_best_pred(1),x_best_pred(2),fval_best_pred/fval_max*nomlz_fval,'Marker','o','color','r','LineStyle','none')
     end
 
     % step 6
@@ -438,8 +449,8 @@ while ~done
         rou=min(rou,rou_max);
 
         % modify
-        KS_nomlz=max(con_nomlz_list,[],2);
-%         KS_nomlz=log(sum(exp(coneq_nomlz_list*rou),2))/rou;
+%         KS_nomlz=max(con_nomlz_list,[],2);
+        KS_nomlz=log(sum(exp(con_nomlz_list*rou),2))/rou;
         [kriging_model_KS,~,~,output]=getKrigingModel...
             (x_list,KS_nomlz,[],[],...
             kriging_model_KS);
@@ -461,8 +472,11 @@ while ~done
         % step 4
         % base on PCFEI value to get first sample_number_iteration point
         EI_list=-fval_pareto_list(:,1);
+        EI_list=EI_list/max(EI_list);
         PF_list=-fval_pareto_list(:,2);
+        PF_list=PF_list/max(PF_list);
         IF_list=object_function_IF(x_pareto_list);
+        IF_list=IF_list/max(IF_list);
         PCFEI_list=EI_list.*PF_list.*IF_list;
         [~,index_list]=sort(PCFEI_list);
         x_updata_list=x_pareto_list(index_list((end+1-sample_number_iteration):end),:);
@@ -546,7 +560,7 @@ output.result_fval_best=result_fval_best;
     function fval=PFFunction(object_function_surrogate,X)
         % EI function
         [Con_pred,Con_var]=object_function_surrogate(X);
-        fval=normpdf(-Con_pred./sqrt(Con_var));
+        fval=normcdf(-Con_pred./sqrt(Con_var));
     end
 
     function fval=IFFunction(x_best,X,theta,variable_number)
@@ -561,7 +575,7 @@ end
 %% auxiliary function
 function [x_best,fval_best,exitflag,output]=findMinMSP...
     (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
-    cheapcon_function,nonlcon_torlance)
+    cheapcon_function,nonlcon_torlance,x_best)
 % find min fval use MSP guideline
 % MSP: object_funtion is object_function (generate by surrogate model)
 % nonlcon_function generate by surrogate model
@@ -594,7 +608,7 @@ else
 end
 
 % generate initial population for ga
-population_matrix=zeros(max(10,2*variable_number),variable_number);
+population_matrix=zeros(min(10,2*variable_number),variable_number);
 for population_index=1:size(population_matrix,1)
     x=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
     if ~isempty(cheapcon_function)
@@ -609,11 +623,11 @@ end
 
 % optiaml
 ga_option=optimoptions('ga','FunctionTolerance',1e-2,'ConstraintTolerance',1e-2,...
-    'PopulationSize',max(10,2*variable_number),...
-    'MaxGenerations',100,'InitialPopulationMatrix',population_matrix,...
+    'PopulationSize',min(10,2*variable_number),...
+    'MaxGenerations',50,'InitialPopulationMatrix',population_matrix,...
     'display','none');
 [x_best,fval_best,exitflag,output]=ga...
-    (object_function_surrogate,variable_number,[],[],[],[],low_bou',up_bou',constraint_function,ga_option);
+    (object_function_surrogate,variable_number,[],[],[],[],low_bou,up_bou,constraint_function,ga_option);
 fmincon_option=optimoptions('fmincon','FunctionTolerance',1e-6,'ConstraintTolerance',1e-6,...
     'algorithm','sqp',....
     'display','none');
@@ -662,7 +676,7 @@ end
 % add cheap con
 for x_index=1:size(x_list,1)
     if ~isempty(cheapcon_function)
-        [con,coneq]=cheapcon_function(x_list(x_index,:)');
+        [con,coneq]=cheapcon_function(x_list(x_index,:));
         max_cheapcon_list(x_index)=max_cheapcon_list(x_index)+...
             sum(max(con,0))+sum(coneq.*coneq);
     end
@@ -684,263 +698,25 @@ if ~isempty(index)
 
     % min fval
     [fval_best,index_best]=min(fval_list);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 else
     % min consum
     [~,index_best]=min(max_nonlcon_list);
     fval_best=fval_list(index_best);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 end
-end
-
-%% FCM
-function FC_model=classifyFuzzyClustering...
-    (X,classify_number,low_bou,up_bou,m)
-% get fuzzy cluster model
-% X is x_number x variable_number matrix
-% center_list is classify_number x variable_number matrix
-%
-if nargin < 4
-    up_bou=[];
-    if nargin < 3
-        low_bou=[];
-    end
-end
-iteration_max=100;
-torlance=1e-3;
-
-[x_number,variable_number]=size(X);
-
-% nomalization data
-if isempty(low_bou)
-    low_bou=min(X,[],1);
-else
-    low_bou=low_bou(:)';
-end
-if isempty(up_bou)
-    up_bou=max(X,[],1);
-else
-    up_bou=up_bou(:)';
-end
-X_nomlz=(X-low_bou)./(up_bou-low_bou);
-
-% if x_number equal 1, clustering cannot done
-if x_number==1
-    FC_model.X=X;
-    FC_model.X_normalize=X_nomlz;
-    FC_model.center_list=X;
-    FC_model.fval_loss_list=[];
-    FC_model.x_class_list=ones(x_number,1);
-    return;
-end
-
-U=zeros(x_number,classify_number);
-center_list=rand(classify_number,variable_number)*0.5;
-iteration=0;
-done=0;
-fval_loss_list=zeros(iteration_max,1);
-
-% get X_center_dis_sq and classify x to each x center
-% classify_number x x_number matrix
-X_center_dis_sq=zeros(x_number,classify_number);
-x_class_list=zeros(x_number,1);
-for x_index=1:x_number
-    for classify_index=1:classify_number
-        temp=(X_nomlz(x_index,:)-center_list(classify_index,:));
-        X_center_dis_sq(x_index,classify_index)=temp*temp';
-    end
-    [~,x_class_list(x_index)]=min(X_center_dis_sq(x_index,:));
-end
-
-while ~done
-    % updata classify matrix U
-    % classify matrix U is x weigth of each center
-    for classify_index=1:classify_number
-        for x_index=1:x_number
-            U(x_index,classify_index)=...
-                1/sum((X_center_dis_sq(x_index,classify_index)./X_center_dis_sq(x_index,:)).^(1/(m-1)));
-        end
-    end
-
-    % updata center_list
-    center_list_old=center_list;
-    for classify_index=1:classify_number
-        center_list(classify_index,:)=...
-            sum((U(:,classify_index)).^m.*X_nomlz,1)./...
-            sum((U(:,classify_index)).^m,1);
-    end
-
-    % updata X_center_dis_sq
-    for x_index=1:x_number
-        for classify_index=1:classify_number
-            temp=(X_nomlz(x_index,:)-center_list(classify_index,:));
-            X_center_dis_sq(x_index,classify_index)=temp*temp';
-        end
-        [~,x_class_list(x_index)]=min(X_center_dis_sq(x_index,:));
-    end
-
-    %     plot(center_list(:,1),center_list(:,2));
-
-    % forced interrupt
-    if iteration > iteration_max
-        done=1;
-    end
-
-    % convergence judgment
-    if sum(sum(center_list_old-center_list).^2) < torlance
-        done=1;
-    end
-
-    iteration=iteration+1;
-    fval_loss_list(iteration)=sum(sum(U.^m.*X_center_dis_sq));
-end
-fval_loss_list(iteration+1:end)=[];
-center_list=center_list.*(up_bou-low_bou)+low_bou;
-
-FC_model.X=X;
-FC_model.X_normalize=X_nomlz;
-FC_model.center_list=center_list;
-FC_model.fval_loss_list=fval_loss_list;
-FC_model.x_class_list=x_class_list;
-
-end
-
-%% SVM
-function [predict_function,SVM_model]=classifySupportVectorMachine...
-    (X,Class,C,low_bou,up_bou,kernel_function)
-% generate support vector machine model version 0
-% version 0 use fmincon to get alpha
-% only support binary classification, 0 and 1
-% X, Y is x_number x variable_number matrix
-% C is penalty factor, default is empty
-% kernel_function default is gauss kernal function
-% kernel_function should be @(x1,x2) ...
-%
-if nargin < 6
-    kernel_function=[];
-    if nargin < 3
-        C=[];
-    end
-end
-
-[x_number,variable_number]=size(X);
-
-% normalization data
-if nargin < 5
-    up_bou=max(X);
-    if nargin < 4
-        low_bou=min(X);
-    end
-end
-X_nomlz=(X-low_bou)./(up_bou-low_bou);
-
-% transfer class into y
-Y=Class;
-for x_index=1:x_number
-    if Y(x_index) == 0
-        Y(x_index)=-1;
-    end
-end
-
-% default kernal function
-if isempty(kernel_function)
-    sigma=-100*log(1/sqrt(x_number))/variable_number^2;
-    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*sigma);
-end
-
-% initialization kernal function process X_cov
-X_cov=zeros(x_number);
-for rank_index=1:x_number
-    for colume_index=1:rank_index-1
-        X_cov(rank_index,colume_index)=...
-            X_cov(colume_index,rank_index);
-    end
-    for colume_index=rank_index:x_number
-        X_cov(rank_index,colume_index)=...
-            kernel_function(X_nomlz(rank_index,:)',X_nomlz(colume_index,:)');
-    end
-end
-
-% min SVM object function to get alpha
-object_function_SVM=@(alpha) -objectFunctionSVM(alpha,X_cov,Y);
-alpha_initial=ones(x_number,1)*0.5;
-low_bou_fmincon=0*ones(x_number,1);
-if isempty(C) || C==0
-    up_bou_fmincon=[];
-else
-    up_bou_fmincon=C*ones(x_number,1);
-end
-Aeq=Y';
-fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp');
-alpha=fmincon(object_function_SVM,alpha_initial,...
-    [],[],Aeq,0,low_bou_fmincon,up_bou_fmincon,[],fmincon_options);
-
-% obtain other paramter
-w=sum(alpha.*Y.*X_nomlz);
-index_list=find(alpha > 1e-6);
-
-alpha_Y=alpha.*Y;
-alpha_Y_cov=X_cov*alpha_Y;
-b=sum(Y(index_list)-alpha_Y_cov(index_list))/length(index_list);
-
-% generate predict function
-predict_function=@(x) classifySupportVectorMachinePredictor...
-    (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function);
-
-% output model
-SVM_model.X=X;
-SVM_model.Class=Class;
-SVM_model.Y=Y;
-SVM_model.X_nomlz=X_nomlz;
-SVM_model.low_bou=low_bou;
-SVM_model.up_bou=up_bou;
-SVM_model.alpha=alpha;
-SVM_model.w=w;
-SVM_model.b=b;
-SVM_model.kernel_function=kernel_function;
-SVM_model.predict_function=predict_function;
-
-    function fval=objectFunctionSVM(alpha,X_inner_product,Y)
-        % support vector machine maximum object function
-        %
-        alpha=alpha(:);
-        alpha_Y__=alpha.*Y;
-        fval=sum(alpha)-alpha_Y__'*X_inner_product*alpha_Y__/2;
-    end
-    function [predict_class,predict_fval]=classifySupportVectorMachinePredictor...
-            (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function)
-        % predict value of x is 1 or -1
-        % x input is colume vector
-        %
-        x=x(:);
-
-        x_number__=size(X_nomlz,1);
-        x_nomlz=(x-low_bou')./(up_bou'-low_bou');
-        X_inner_product__=zeros(x_number__,1);
-        for x_index__=1:x_number__
-            X_inner_product__(x_index__)=...
-                kernel_function(X_nomlz(x_index__,:)',x_nomlz);
-        end
-        predict_fval=sum(alpha.*Y.*X_inner_product__)+b;
-        predict_fval=1/(1+exp(-predict_fval));
-        if predict_fval > 0.5
-            predict_class=1;
-        else
-            predict_class=0;
-        end
-    end
 end
 
 %% surrogate model

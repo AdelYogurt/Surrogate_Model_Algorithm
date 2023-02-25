@@ -1,21 +1,31 @@
-function interpVisualize...
-    (model,low_bou,up_bou,figure_handle)
+function interpVisualize(model,low_bou,up_bou,...
+    grid_number,Y_min,Y_max,figure_handle)
 % visualization polynamial respond surface model
 % figrue is 100
 %
 % Copyright 2022 Adel
 %
-if nargin < 4
-    figure_handle=figure(101);
-    if nargin < 3
-        up_bou=[];
-        if nargin < 2
-            low_bou=[];
+if nargin < 7
+    figure_handle=[];
+    if nargin < 6
+        Y_max=[];
+        if nargin < 5
+            Y_min=[];
+            if nargin < 4
+                grid_number=[];
+            end
         end
     end
 end
 
-axes_handle=axes(figure_handle);
+if isempty(figure_handle)
+    figure_handle=figure(111);
+end
+axes_handle=figure_handle.CurrentAxes;
+if isempty(axes_handle)
+    axes_handle=axes(figure_handle);
+end
+axes_context=axes_handle.Children;
 
 x_list=model.X;
 y_list=model.Y;
@@ -40,7 +50,16 @@ if size(low_bou,1) > 2
     error('interpolationRadialBasisVisualize: dimension large than two');
 end
 
-grid_number=100;
+if isempty(grid_number)
+    grid_number=100;
+end
+if isempty(Y_max)
+    Y_max=inf;
+end
+if isempty(Y_min)
+    Y_min=-inf;
+end
+
 d_bou=(up_bou-low_bou)/grid_number;
 
 if size(x_list,2) == 1
@@ -50,8 +69,11 @@ if size(x_list,2) == 1
         predict_x=(x_index-1).*d_bou+low_bou;
         predict_result(x_index)=predict_function(predict_x);
     end
-    line(axes_handle,X_draw,predict_result);
-    line(axes_handle,x_list,y_list,'Marker','o','LineStyle','none');
+    predict_result=min(predict_result,Y_max);
+    predict_result=max(predict_result,Y_min);
+    axes_context=[axes_context;line(X_draw,predict_result)];
+    axes_context=[axes_context;line(x_list,y_list,'Marker','o','LineStyle','none')];
+    axes_handle.set('Children',axes_context);
     xlabel('X');
     ylabel('Y');
 elseif size(x_list,2) == 2
@@ -72,8 +94,12 @@ elseif size(x_list,2) == 2
             end
         end
     end
-    surf(axes_handle,X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none');
-    line(axes_handle,x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none');
+    predict_result=min(predict_result,Y_max);
+    predict_result=max(predict_result,Y_min);
+%     contour(axes_handle,X_draw,Y_draw,predict_result);
+    axes_context=[axes_context;surface(X_draw,Y_draw,predict_result,'FaceAlpha',0.5,'EdgeColor','none')];
+    axes_context=[axes_context;line(x_list(:,1),x_list(:,2),y_list,'Marker','o','LineStyle','none')];
+    axes_handle.set('Children',axes_context);
     xlabel('X');
     ylabel('Y');
     zlabel('Z');

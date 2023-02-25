@@ -744,7 +744,7 @@ end
 % add cheap con
 for x_index=1:size(x_list,1)
     if ~isempty(cheapcon_function)
-        [con,coneq]=cheapcon_function(x_list(x_index,:)');
+        [con,coneq]=cheapcon_function(x_list(x_index,:));
         max_cheapcon_list(x_index)=max_cheapcon_list(x_index)+...
             sum(max(con,0))+sum(coneq.*coneq);
     end
@@ -763,26 +763,26 @@ if ~isempty(index)
     if ~isempty(coneq_list)
         coneq_list=coneq_list(index,:);
     end
-    
+
     % min fval
     [fval_best,index_best]=min(fval_list);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 else
     % min consum
     [~,index_best]=min(max_nonlcon_list);
     fval_best=fval_list(index_best);
-    x_best=x_list(index_best,:)';
+    x_best=x_list(index_best,:);
     if ~isempty(con_list)
-        con_best=con_list(index_best,:)';
+        con_best=con_list(index_best,:);
     end
     if ~isempty(coneq_list)
-        coneq_best=coneq_list(index_best,:)';
+        coneq_best=coneq_list(index_best,:);
     end
 end
 end
