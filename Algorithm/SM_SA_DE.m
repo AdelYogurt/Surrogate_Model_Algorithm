@@ -30,6 +30,19 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
+variable_number=4;
+object_function=@(x) benchmark.singleROSObject(x);
+object_function_LF=@(x) benchmark.singleROSObjectLow(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2,-2,-2,-2];
+up_bou=[2,2,2,2];
+nonlcon_function=[];
+nonlcon_function_LF=[];
+cheapcon_function=[];
+
 % variable_number=2;
 % object_function=@(x) benchmark.singleG06Object(x);
 % object_function_LF=@(x) benchmark.singleG06ObjectLow(x);
@@ -93,41 +106,59 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=20;
-object_function=@(x) benchmark.singleEP20Object(x);
-object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=ones(1,variable_number)*-30;
-up_bou=ones(1,variable_number)*30;
-nonlcon_function=[];
-nonlcon_function_LF=[];
-cheapcon_function=[];
+% variable_number=20;
+% object_function=@(x) benchmark.singleEP20Object(x);
+% object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
+% nonlcon_function=[];
+% nonlcon_function_LF=[];
+% cheapcon_function=[];
 
 % x_initial=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % [x_best,fval_best,~,output]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,[],optimoptions('fmincon','Algorithm','sqp','MaxFunctionEvaluations',10000))
 
-delete([data_library_name,'.txt']);
-delete('result_total.txt');
+% % single run
+%
+% delete([data_library_name,'.txt']);
+% delete('result_total.txt');
+% 
+% [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
+%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+%     cheapcon_function,[],200,300)
+% result_x_best=output.result_x_best;
+% result_fval_best=output.result_fval_best;
+% 
+% figure(1);
+% plot(result_fval_best);
+% 
+% figure(2);
+% [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
+%     (data_library_name,low_bou,up_bou);
+% scatter3(x_list(:,1),x_list(:,2),fval_list);
+% xlabel('X');
+% ylabel('Y');
+% zlabel('Z');
 
-[x_best,fval_best,NFE,output]=optimalSurrogateSADE...
-    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],200,300)
-result_x_best=output.result_x_best;
-result_fval_best=output.result_fval_best;
-
-figure(1);
-plot(result_fval_best);
-
-figure(2);
-[x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
-    (data_library_name,low_bou,up_bou);
-scatter3(x_list(:,1),x_list(:,2),fval_list);
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+% % repeat run
+% repeat_number=10;
+% result_fval=zeros(repeat_number,1);
+% for repeat_index=1:repeat_number
+%     delete([data_library_name,'.txt']);
+%     delete('result_total.txt');
+% 
+%     [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
+%         (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+%         cheapcon_function,[],200,300);
+%     
+%     result_fval(repeat_index)=fval_best;
+% end
+% 
+% fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
@@ -168,7 +199,7 @@ if nargin < 7
 end
 
 DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=1; % whether print data
+INFORMATION_FLAG=0; % whether print data
 CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 % hyper parameter

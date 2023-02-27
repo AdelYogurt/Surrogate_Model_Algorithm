@@ -19,6 +19,19 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
+variable_number=4;
+object_function=@(x) benchmark.singleROSObject(x);
+object_function_LF=@(x) benchmark.singleROSObjectLow(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2,-2,-2,-2];
+up_bou=[2,2,2,2];
+nonlcon_function=[];
+nonlcon_function_LF=[];
+cheapcon_function=[];
+
 % variable_number=20;
 % object_function=@(x) benchmark.singleDP20Object(x);
 % object_function_LF=@(x) benchmark.singleDP20ObjectLow(x);
@@ -32,18 +45,20 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=20;
-object_function=@(x) benchmark.singleEP20Object(x);
-object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=ones(1,variable_number)*-30;
-up_bou=ones(1,variable_number)*30;
-nonlcon_function=[];
-nonlcon_function_LF=[];
-cheapcon_function=[];
+% variable_number=20;
+% object_function=@(x) benchmark.singleEP20Object(x);
+% object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
+% nonlcon_function=[];
+% nonlcon_function_LF=[];
+% cheapcon_function=[];
+
+% single run
 
 delete([data_library_name,'.txt']);
 delete('result_total.txt');
@@ -65,6 +80,22 @@ scatter3(x_list(:,1),x_list(:,2),fval_list);
 xlabel('X');
 ylabel('Y');
 zlabel('Z');
+
+% % repeat run
+% repeat_number=10;
+% result_fval=zeros(repeat_number,1);
+% for repeat_index=1:repeat_number
+%     delete([data_library_name,'.txt']);
+%     delete('result_total.txt');
+% 
+%     [x_best,fval_best,NFE,output]=optimalSurrogateSADEKTS...
+%         (object_function,object_function_LF,variable_number,low_bou,up_bou,...
+%         nonlcon_function,nonlcon_function_LF,cheapcon_function,[],[],200,300);
+% 
+%     result_fval(repeat_index)=fval_best;
+% end
+% 
+% fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADEKTS...
@@ -121,8 +152,8 @@ clear('file_result');
 
 % hyper parameter
 population_number=min(100,10*variable_number);
-elite_rate=0.2;
-correction_factor=0.2;
+elite_rate=0.5;
+correction_factor=0.1;
 
 % generate knowledge transform data base
 if isempty(model_function_source)
@@ -198,7 +229,7 @@ if nargin < 7
 end
 
 DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=1; % whether print data
+INFORMATION_FLAG=0; % whether print data
 CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 % hyper parameter
@@ -778,7 +809,7 @@ X_initial=lhsdesign(population_number,variable_number).*(up_bou-low_bou)+low_bou
 
 % KTS
 if ~isempty(x_list)
-    line(X_initial(:,1),X_initial(:,2),'lineStyle','none','Marker','o','Color','b')
+%     line(X_initial(:,1),X_initial(:,2),'lineStyle','none','Marker','o','Color','b')
 
     % rank x_list data
     [x_list,fval_list,~,~]=rankData...
@@ -821,7 +852,7 @@ if ~isempty(x_list)
     end
     
     x_list=[X_inferior;X_superior];
-    line(x_list(:,1),x_list(:,2),'lineStyle','none','Marker','.','Color','r')
+%     line(x_list(:,1),x_list(:,2),'lineStyle','none','Marker','.','Color','r')
 else
     x_list=X_initial;
 end

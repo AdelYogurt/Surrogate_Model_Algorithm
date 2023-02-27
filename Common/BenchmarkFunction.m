@@ -234,6 +234,22 @@ classdef BenchmarkFunction < handle
             fval=sum(100*(x(2:10)-x(1:9).^2).^2+(x(1:9)-1).^2);
         end
         function fval=singleROSObject(self,x)
+            % Rosenbrock problem
+            % variable_number=4;
+            % object_function=@(x) benchmark.singleROSObject(x);
+            % object_function_LF=@(x) benchmark.singleROSObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=[-2,-2,-2,-2];
+            % up_bou=[2,2,2,2];
+            % nonlcon_function=[];
+            % nonlcon_function_LF=[];
+            % cheapcon_function=[];
+            %
+            % fval_min=0
+            %
             fval=sum((100*(x(2:4)-x(1:3).^2).^2-(x(1:3)-1).^2).^2);
         end
         function fval=singleROSObjectLow(self,x)

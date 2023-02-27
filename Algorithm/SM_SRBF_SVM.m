@@ -2,6 +2,8 @@ clc;
 clear;
 close all hidden;
 
+data_library_name='optimal_data_library';
+
 benchmark=BenchmarkFunction();
 
 % variable_number=2;
@@ -25,6 +27,19 @@ benchmark=BenchmarkFunction();
 % up_bou=[3,3];
 % nonlcon_function=[];
 % cheapcon_function=[];
+
+variable_number=4;
+object_function=@(x) benchmark.singleROSObject(x);
+object_function_LF=@(x) benchmark.singleROSObjectLow(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=[-2,-2,-2,-2];
+up_bou=[2,2,2,2];
+nonlcon_function=[];
+nonlcon_function_LF=[];
+cheapcon_function=[];
 
 % variable_number=6;
 % object_function=@(x) benchmark.singleHNObject(x);
@@ -78,19 +93,19 @@ benchmark=BenchmarkFunction();
 % cheapcon_function=[];
 % model_function=[];
 
-variable_number=4;
-object_function=@(x) benchmark.singlePVD4Object(x);
-object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
-A=[-1,0,0.0193,0;
-    0,-1,0.00954,0;];
-B=[0;0];
-Aeq=[];
-Beq=[];
-low_bou=[0,0,0,0];
-up_bou=[1,1,50,240];
-nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
-cheapcon_function=[];
-model_function=[];
+% variable_number=4;
+% object_function=@(x) benchmark.singlePVD4Object(x);
+% object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
+% A=[-1,0,0.0193,0;
+%     0,-1,0.00954,0;];
+% B=[0;0];
+% Aeq=[];
+% Beq=[];
+% low_bou=[0,0,0,0];
+% up_bou=[1,1,50,240];
+% nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
+% cheapcon_function=[];
+% model_function=[];
 
 % variable_number=13;
 % object_function=@benchmark.singleG01Object;
@@ -114,30 +129,62 @@ model_function=[];
 % nonlcon_function_LF=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
 % cheapcon_function=[];
 
+% variable_number=20;
+% object_function=@(x) benchmark.singleEP20Object(x);
+% object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=ones(1,variable_number)*-30;
+% up_bou=ones(1,variable_number)*30;
+% nonlcon_function=[];
+% nonlcon_function_LF=[];
+% cheapcon_function=[];
+
 % x_initial=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % fmincon_option=optimoptions('fmincon','Algorithm','sqp');
 % [x_best,fval_best,~,output,lambda,grad,hessian]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,fmincon_option)
 
-data_library_name='optimal_data_library.txt';
-delete(data_library_name);
-delete('result_total.txt');
-[x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
-    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],100)
+% % single run
+%
+% delete([data_library_name,'.txt']);
+% delete('result_total.txt');
+% 
+% [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
+%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+%     cheapcon_function,[],50)
+% 
+% result_x_best=output.result_x_best;
+% result_fval_best=output.result_fval_best;
+% 
+% figure(1);
+% plot(result_fval_best);
+% 
+% figure(2);
+% [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
+%     (data_library_name,low_bou,up_bou);
+% scatter3(x_list(:,1),x_list(:,2),fval_list);
+% xlabel('X');
+% ylabel('Y');
+% zlabel('Z');
 
-result_x_best=output.result_x_best;
-result_fval_best=output.result_fval_best;
+% repeat run
+repeat_number=10;
+result_fval=zeros(repeat_number,1);
+for repeat_index=1:repeat_number
+    delete([data_library_name,'.txt']);
+    delete('result_total.txt');
 
-figure(1);
-plot(result_fval_best);
+    [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
+        (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+        cheapcon_function,[],200);
 
-figure(2);
-[x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
-    (data_library_name,low_bou,up_bou);
-scatter3(x_list(:,1),x_list(:,2),fval_list);
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+    result_fval(repeat_index)=fval_best;
+end
+
+fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
@@ -184,8 +231,8 @@ if nargin < 7
 end
 
 DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=1; % whether print data
-CONVERGENCE_JUDGMENT_FLAG=1; % whether judgment convergence
+INFORMATION_FLAG=0; % whether print data
+CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 if isempty(iteration_max)
     iteration_max=100;
@@ -508,7 +555,7 @@ while ~done
             x_sup_list=x_data_list(SVM_predict_function(x_data_list) == 1,:);
 
             if isempty(x_sup_list)
-                % no center found use filter point
+                % no sup point found use filter point
                 if isempty(feasible_index_list)
                     if ~isempty(con_nomlz_list)
                         con_filter_nomlz_list=con_nomlz_list(filter_index_list);
@@ -532,35 +579,32 @@ while ~done
             % interset sampling
             delta_add=0.1;
             %         fval_thresh=min(fval_list)+(eta-delta_add)*(max(fval_list)-min(fval_list));
-            fval_sort=sort(fval_list);
+            [fval_sort,index_list]=sort(fval_list);
+            x_list_sort=x_list(index_list,:);
             index=floor(size(fval_list,1)/2);
             fval_thresh=fval_sort(index);
-            x_sup_list=[];
 
-            while size(x_sup_list,1) < sample_number_initial/2
-                % step 7-1
-                % classify exist data
-                % modify
-                %             fval_thresh=fval_thresh+delta_add*(max(fval_list)-min(fval_list));
-                fval_label=-ones(size(x_list,1),1);
-                for x_index=1:size(x_list,1)
-                    if fval_list(x_index) <= fval_thresh
-                        fval_label(x_index)=1;
-                    else
-                        fval_label(x_index)=0;
-                    end
-                end
+            % step 7-1
+            % classify exist data
+            % modify
+            %             fval_thresh=fval_thresh+delta_add*(max(fval_list)-min(fval_list));
+            fval_label=-ones(size(x_list,1),1);
+            fval_label(fval_list <= fval_thresh)=1;
 
-                % step 7-2
-                % get a large number of x point, use SVM to predict x point
-                [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-                    (x_list,fval_label,penalty_SVM);
-                if DRAW_FIGURE_FLAG && variable_number < 3
-                    classifyVisualization...
-                        (SVM_model,low_bou,up_bou);
-                end
-                % get data to obtain clustering center
-                x_sup_list=x_data_list(SVM_predict_function(x_data_list) == 1,:);
+            % step 7-2
+            % get a large number of x point, use SVM to predict x point
+            [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
+                (x_list,fval_label,penalty_SVM);
+            if DRAW_FIGURE_FLAG && variable_number < 3
+                classifyVisualization...
+                    (SVM_model,low_bou,up_bou);
+            end
+            % get data to obtain clustering center
+            x_sup_list=x_data_list(SVM_predict_function(x_data_list) == 1,:);
+
+            if isempty(x_sup_list)
+                % no sup point found use filter point
+                x_sup_list=x_list_sort(1:floor(size(fval_list,1)/2),:);
             end
         end
 
