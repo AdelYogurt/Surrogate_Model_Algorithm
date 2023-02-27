@@ -123,7 +123,7 @@ delete(data_library_name);
 delete('result_total.txt');
 [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],50)
+    cheapcon_function,[],100)
 
 result_x_best=output.result_x_best;
 result_fval_best=output.result_fval_best;
@@ -199,6 +199,9 @@ eta=1/variable_number; % space decrease coefficient
 
 penalty_SVM=100;
 m=2; % clustering parameter
+
+% max fval when normalize fval, con, coneq
+nomlz_fval=10;
 
 filter_torlance=1e-3;
 protect_range=1e-4;
@@ -280,17 +283,17 @@ while ~done
 
     % nomalization all data
     fval_max=max(abs(fval_list),[],1);
-    fval_nomlz_list=fval_list./fval_max*10;
+    fval_nomlz_list=fval_list./fval_max*nomlz_fval;
     if ~isempty(con_list)
         con_max_list=max(abs(con_list),[],1);
-        con_nomlz_list=con_list./con_max_list*10;
+        con_nomlz_list=con_list./con_max_list*nomlz_fval;
     else
         con_max_list=[];
         con_nomlz_list=[];
     end
     if ~isempty(coneq_list)
         coneq_max_list=max(abs(coneq_list),[],1);
-        coneq_nomlz_list=coneq_list./coneq_max_list*10;
+        coneq_nomlz_list=coneq_list./coneq_max_list*nomlz_fval;
     else
         coneq_max_list=[];
         coneq_nomlz_list=[];
@@ -342,15 +345,15 @@ while ~done
 
     % normalization fval updata
     if ~isempty(fval_potential)
-        fval_potential_nomlz=fval_potential/fval_max*10;
+        fval_potential_nomlz=fval_potential/fval_max*nomlz_fval;
         fval_nomlz_list=[fval_nomlz_list;fval_potential_nomlz];
     end
     if ~isempty(con_potential)
-        con_potential_nomlz=(con_potential./con_max_list)*10;
+        con_potential_nomlz=(con_potential./con_max_list)*nomlz_fval;
         con_nomlz_list=[con_nomlz_list;con_potential_nomlz];
     end
     if ~isempty(coneq_potential)
-        coneq_potential_nomlz=(coneq_potential./coneq_max_list)*10;
+        coneq_potential_nomlz=(coneq_potential./coneq_max_list)*nomlz_fval;
         coneq_nomlz_list=[coneq_nomlz_list;coneq_potential_nomlz];
     end
 
@@ -373,7 +376,7 @@ while ~done
 
     if DRAW_FIGURE_FLAG && variable_number < 3
         interpVisualize(radialbasis_model_fval,low_bou,up_bou);
-        line(x_potential(1),x_potential(2),fval_potential/fval_max*10,'Marker','o','color','r','LineStyle','none')
+        line(x_potential(1),x_potential(2),fval_potential/fval_max*nomlz_fval,'Marker','o','color','r','LineStyle','none')
     end
 
     % step 6

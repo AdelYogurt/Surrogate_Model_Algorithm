@@ -217,6 +217,7 @@ rou_max=64;
 rou_decrease=0.5;
 rou_increase=2;
 
+% max fval when normalize fval, con, coneq
 nomlz_fval=1;
 
 protect_range=1e-4;

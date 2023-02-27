@@ -50,7 +50,7 @@ delete('result_total.txt');
 
 [x_best,fval_best,NFE,output]=optimalSurrogateSADEKTS...
     (object_function,object_function_LF,variable_number,low_bou,up_bou,...
-    nonlcon_function,nonlcon_function_LF,cheapcon_function,[],[],400,300)
+    nonlcon_function,nonlcon_function_LF,cheapcon_function,[],[],200,300)
 result_x_best=output.result_x_best;
 result_fval_best=output.result_fval_best;
 
@@ -68,9 +68,9 @@ zlabel('Z');
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADEKTS...
-    (object_function,object_function_LF,variable_number,low_bou,up_bou,....
-    nonlcon_function,nonlcon_function_LF,cheapcon_function,...
-    model_function,model_function_LF,....
+    (object_function,object_function_source,variable_number,low_bou,up_bou,....
+    nonlcon_function,nonlcon_function_source,cheapcon_function,...
+    model_function,model_function_source,....
     NFE_max,iteration_max,torlance,nonlcon_torlance)
 % SADE-KTS optimization algorithm
 % adding knowledge-transfer-based sampling to original SADE algorithm 
@@ -98,13 +98,13 @@ if nargin < 14 || isempty(nonlcon_torlance)
 end
 
 if nargin < 10
-    model_function_LF=[];
+    model_function_source=[];
     if nargin < 9
         model_function=[];
         if nargin < 8
             cheapcon_function=[];
             if nargin < 7
-                nonlcon_function_LF=[];
+                nonlcon_function_source=[];
                 if nargin < 6
                     nonlcon_function=[];
                 end
@@ -121,12 +121,12 @@ clear('file_result');
 
 % hyper parameter
 population_number=min(100,10*variable_number);
-elite_rate=0.5;
-correction_factor=0.1;
+elite_rate=0.2;
+correction_factor=0.2;
 
 % generate knowledge transform data base
-if isempty(model_function_LF)
-    model_function_LF=@(x) modelFunction(x,object_function_LF,nonlcon_function_LF);
+if isempty(model_function_source)
+    model_function_source=@(x) modelFunction(x,object_function_source,nonlcon_function_source);
 end
 
 x_list=lhsdesign(min(100,10*variable_number),variable_number).*(up_bou-low_bou)+low_bou;
@@ -134,7 +134,7 @@ x_list=lhsdesign(min(100,10*variable_number),variable_number).*(up_bou-low_bou)+
 %     (min(100,10*variable_number),variable_number,[],...
 %     low_bou,up_bou,cheapcon_function);
 dataLibraryUpdata...
-    (data_library_name,model_function_LF,x_list);
+    (data_library_name,model_function_source,x_list);
 
 % Knowledge-Transfer-Based Sampling Method
 x_initial_list=getInitialSample...
@@ -201,12 +201,14 @@ DRAW_FIGURE_FLAG=0; % whether draw data
 INFORMATION_FLAG=1; % whether print data
 CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
-% parameter
+% hyper parameter
 population_number=min(100,10*variable_number);
 RBF_number=max(100,(variable_number+1)*(variable_number+2)/2);
-
 scaling_factor=0.8; % F
 cross_rate=0.8;
+
+% max fval when normalize fval, con, coneq
+nomlz_fval=10;
 
 protect_range=1e-4;
 
@@ -293,16 +295,16 @@ while ~done
     infor_search_flag=search_flag;
     % nomalization con with average
     fval_max=mean(abs(fval_list),1);
-    fval_nomlz_list=fval_list./fval_max*10;
+    fval_nomlz_list=fval_list./fval_max*nomlz_fval;
     if ~isempty(con_list)
         con_max_list=mean(abs(con_list),1);
-        con_nomlz_list=con_list./con_max_list*10;
+        con_nomlz_list=con_list./con_max_list*nomlz_fval;
     else
         con_nomlz_list=[];
     end
     if ~isempty(coneq_list)
         coneq_max_list=mean(abs(coneq_list),1);
-        coneq_nomlz_list=coneq_list./coneq_max_list*10;
+        coneq_nomlz_list=coneq_list./coneq_max_list*nomlz_fval;
     else
         coneq_nomlz_list=[];
     end
@@ -315,7 +317,7 @@ while ~done
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
             population_number,scaling_factor,cross_rate,...
             kriging_model_fval,kriging_model_con,kriging_model_coneq,...
-            expensive_nonlcon_flag,DRAW_FIGURE_FLAG);
+            expensive_nonlcon_flag);
         
         [x_global_infill,fval_global_infill,con_global_infill,coneq_global_infill,NFE_p,repeat_index]=dataLibraryUpdataProtect...
             (data_library_name,model_function,x_global_infill,...
@@ -355,13 +357,17 @@ while ~done
                 search_flag=0;
             end
         end
+    
+        if DRAW_FIGURE_FLAG && variable_number < 3
+            interpVisualize(kriging_model_fval,low_bou,up_bou);
+            line(x_global_infill(1),x_global_infill(2),fval_global_infill./fval_max*nomlz_fval,'Marker','o','color','r');
+        end
     else
         % local search
-        x_local_infill=searchLocal...
+        [x_local_infill,RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
-            population_number,RBF_number,...
-            DRAW_FIGURE_FLAG);
+            population_number,RBF_number);
         
         [x_local_infill,fval_local_infill,con_local_infill,coneq_local_infill,NFE_p,repeat_index]=dataLibraryUpdataProtect...
             (data_library_name,model_function,x_local_infill,...
@@ -382,7 +388,6 @@ while ~done
         if isempty(x_local_infill)
             continue;
         end
-
         if isempty(feasiable_index_list)
             min_con=min(con_list(1:end-1),[],1);
             min_coneq=min(abs(coneq_list(1:end-1)),[],1);
@@ -401,6 +406,11 @@ while ~done
             if fval_local_infill <= min_fval  % imporve
                 search_flag=1;
             end
+        end
+
+        if DRAW_FIGURE_FLAG && variable_number < 3
+            interpVisualize(RBF_model_fval,low_bou,up_bou);
+            line(x_local_infill(1),x_local_infill(2),fval_local_infill./fval_max*nomlz_fval,'Marker','o','color','r');
         end
     end
     
@@ -465,7 +475,7 @@ output.result_fval_best=result_fval_best;
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
             population_number,scaling_factor,cross_rate,...
             kriging_model_fval,kriging_model_con,kriging_model_coneq,...
-            expensive_nonlcon_flag,DRAW_FIGURE_FLAG)
+            expensive_nonlcon_flag)
         % find global infill point function
         %
         
@@ -566,17 +576,12 @@ output.result_fval_best=result_fval_best;
             x_global_infill=x_DE_list(fitness_best_index,:);
         end
         
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            line(x_global_infill(1),x_global_infill(2),'Marker','o','color','r')
-            interpVisualize(kriging_model_fval,low_bou,up_bou);
-        end
     end
 
-    function x_local_infill=searchLocal...
+    function [x_local_infill,RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
-            population_number,RBF_number,...
-            DRAW_FIGURE_FLAG)
+            population_number,RBF_number)
         % find local infill point function
         %
         
@@ -610,10 +615,10 @@ output.result_fval_best=result_fval_best;
         end
         
         % get RBF model and function
-        [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output_radialbasis]=getRadialBasisModel...
+        [RBF_model_fval,RBF_model_con,RBF_model_coneq,output_RBF]=getRadialBasisModel...
             (x_RBF_list,fval_RBF_nomlz_list,con_RBF_nomlz_list,coneq_RBF_nomlz_list);
-        object_function_surrogate=output_radialbasis.object_function_surrogate;
-        nonlcon_function_surrogate=output_radialbasis.nonlcon_function_surrogate;
+        object_function_surrogate=output_RBF.object_function_surrogate;
+        nonlcon_function_surrogate=output_RBF.nonlcon_function_surrogate;
         
         % get local infill point
         % obtian total constraint function
@@ -627,10 +632,6 @@ output.result_fval_best=result_fval_best;
         x_local_infill=fmincon(object_function_surrogate,x_initial,[],[],[],[],...
             low_bou,up_bou,constraint_function,fmincon_options);
         
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            line(x_local_infill(1),x_local_infill(2),'Marker','o','color','r')
-            interpVisualize(radialbasis_model_fval,low_bou,up_bou);
-        end
     end
 
     function [fval,con,coneq]=modelFunction(x,object_function,nonlcon_function)
@@ -780,41 +781,30 @@ if ~isempty(x_list)
     line(X_initial(:,1),X_initial(:,2),'lineStyle','none','Marker','o','Color','b')
 
     % rank x_list data
-    [X_input,~,~,~]=rankData...
+    [x_list,fval_list,~,~]=rankData...
         (x_list,fval_list,con_list,coneq_list);
     
     [x_number,variable_number]=size(x_list);
     
     N_elite=round(x_number*elite_rate);
     
-    % generate SVM model
+    % generate SVM model, elite will be 1
     Y=[ones(N_elite,1);-ones(x_number-N_elite,1)];
-    [SVM_predict_function,~]=classifySupportVectorMachine...
-        (X_input,Y,10,low_bou,up_bou);
+    [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
+        (x_list,Y,10);
     
-    % get predict value by SVM
-    Y=zeros(population_number,1);
-    index_list=[];
-    for x_index=1:population_number
-        Y(x_index)=SVM_predict_function(X_initial(x_index,:)');
-        if Y(x_index) > 0
-            index_list=[index_list;x_index];
-        end
-    end
-    
+    % get predict value by SVM, if equal to 1 is elite
+    index_list=1:population_number;
+    index_list((~SVM_predict_function(X_initial)) == 1)=[];
+
     while isempty(index_list)
-        [X,X_new,distance_min_normalize]=getLatinHypercube...
-            (population_number,variable_number,[],...
-            low_bou,up_bou);
+        %         [X_initial,~,~]=getLatinHypercube...
+        %             (population_number,variable_number,[],...
+        %             low_bou,up_bou);
+        X_initial=lhsdesign(population_number,variable_number).*(up_bou-low_bou)+low_bou;
         % get predict value by SVM
-        Y=zeros(population_number,1);
-        index_list=[];
-        for x_index=1:population_number
-            Y(x_index)=SVM_predict_function(X(x_index,:)');
-            if Y(x_index) > 0
-                index_list=[index_list;x_index];
-            end
-        end
+        index_list=1:population_number;
+        index_list((~SVM_predict_function(X_initial)) == 1)=[];
     end
     
     % move X to nearest X_superior
@@ -982,16 +972,15 @@ end
 
 %% SVM
 function [predict_function,SVM_model]=classifySupportVectorMachine...
-    (X,class,C,low_bou,up_bou,kernel_function)
-% generate support vector machine model version 0
-% version 0 use fmincon to get alpha
-% only support binary classification, 0 and 1
+    (X,Class,C,kernel_function)
+% generate support vector machine model
+% use fmincon to get alpha
+% only support binary classification, -1 and 1
 % X, Y is x_number x variable_number matrix
 % C is penalty factor, default is empty
 % kernel_function default is gauss kernal function
-% kernel_function should be @(x1,x2) ...
 %
-if nargin < 6
+if nargin < 4
     kernel_function=[];
     if nargin < 3
         C=[];
@@ -1001,44 +990,28 @@ end
 [x_number,variable_number]=size(X);
 
 % normalization data
-if nargin < 5
-    up_bou=max(X);
-    if nargin < 4
-        low_bou=min(X);
-    end
-end
-X_nomlz=(X-low_bou)./(up_bou-low_bou);
+aver_X=mean(X);
+stdD_X=std(X);
+index__=find(stdD_X == 0);
+if  ~isempty(index__),  stdD_X(index__)=1; end
+X_nomlz=(X-aver_X)./stdD_X;
 
-% transfer class into y
-Y=class;
-for x_index=1:x_number
-    if Y(x_index) == 0
-        Y(x_index)=-1;
-    end
-end
+Y=Class;
 
 % default kernal function
 if isempty(kernel_function)
-    sigma=-100*log(1/sqrt(x_number))/variable_number^2;
-    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*sigma);
+    % notice after standard normal distribution normalize
+    % X usually distribution in -2 to 2, so divide by 16
+    sigma=-100*log(1/sqrt(x_number))/variable_number^2/16;
+    kernel_function=@(U,V) kernelGaussian(U,V,sigma);
 end
 
 % initialization kernal function process X_cov
-X_cov=zeros(x_number);
-for rank_index=1:x_number
-    for colume_index=1:rank_index-1
-        X_cov(rank_index,colume_index)=...
-            X_cov(colume_index,rank_index);
-    end
-    for colume_index=rank_index:x_number
-        X_cov(rank_index,colume_index)=...
-            kernel_function(X_nomlz(rank_index,:)',X_nomlz(colume_index,:)');
-    end
-end
+K=kernel_function(X_nomlz,X_nomlz);
 
 % min SVM object function to get alpha
-object_function_SVM=@(alpha) -objectFunctionSVM(alpha,X_cov,Y);
-alpha_initial=ones(x_number,1)*0.5;
+object_function=@(alpha) -objectFunction(alpha,K,Y);
+alpha=ones(x_number,1)*0.5;
 low_bou_fmincon=0*ones(x_number,1);
 if isempty(C) || C==0
     up_bou_fmincon=[];
@@ -1046,63 +1019,63 @@ else
     up_bou_fmincon=C*ones(x_number,1);
 end
 Aeq=Y';
-fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp');
-alpha=fmincon(object_function_SVM,alpha_initial,...
+fmincon_options = optimoptions('fmincon','Display','none','Algorithm','sqp');
+alpha=fmincon(object_function,alpha,...
     [],[],Aeq,0,low_bou_fmincon,up_bou_fmincon,[],fmincon_options);
 
 % obtain other paramter
-w=sum(alpha.*Y.*X_nomlz);
-index_list=find(alpha > 1e-6);
-
 alpha_Y=alpha.*Y;
-alpha_Y_cov=X_cov*alpha_Y;
+
+w=sum(alpha_Y.*X_nomlz);
+index_list=find(alpha > 1e-6); % support vector
+alpha_Y_cov=K*alpha_Y;
 b=sum(Y(index_list)-alpha_Y_cov(index_list))/length(index_list);
 
 % generate predict function
 predict_function=@(x) classifySupportVectorMachinePredictor...
-    (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function);
+    (x,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_function);
 
 % output model
 SVM_model.X=X;
-SVM_model.class=class;
+SVM_model.Class=Class;
 SVM_model.Y=Y;
 SVM_model.X_nomlz=X_nomlz;
-SVM_model.low_bou=low_bou;
-SVM_model.up_bou=up_bou;
+SVM_model.aver_X=aver_X;
+SVM_model.stdD_X=stdD_X;
 SVM_model.alpha=alpha;
 SVM_model.w=w;
 SVM_model.b=b;
 SVM_model.kernel_function=kernel_function;
 SVM_model.predict_function=predict_function;
 
-    function fval=objectFunctionSVM(alpha,X_inner_product,Y)
+    function fval=objectFunction(alpha,K,Y)
         % support vector machine maximum object function
         %
         alpha=alpha(:);
         alpha_Y__=alpha.*Y;
-        fval=sum(alpha)-alpha_Y__'*X_inner_product*alpha_Y__/2;
+        fval=sum(alpha)-alpha_Y__'*K*alpha_Y__/2;
     end
-    function [predict_class,predict_fval]=classifySupportVectorMachinePredictor...
-            (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function)
-        % predict value of x is 1 or -1
+    function [Class_pred,Probability]=classifySupportVectorMachinePredictor...
+            (X_pred,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_function)
+        % predict_fval is 1 or -1, predict_class is 1 or 0
+        %
         % x input is colume vector
         %
-        x=x(:);
-        
-        x_number__=size(X_nomlz,1);
-        x_nomlz=(x-low_bou')./(up_bou'-low_bou');
-        X_inner_product__=zeros(x_number__,1);
-        for x_index__=1:x_number__
-            X_inner_product__(x_index__)=...
-                kernel_function(X_nomlz(x_index__,:)',x_nomlz);
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        K_pred=kernel_function(X_pred_nomlz,X_nomlz);
+        Probability=K_pred*alpha_Y+b;
+        Probability=1./(1+exp(-Probability));
+        Class_pred=Probability > 0.5;
+    end
+    function K=kernelGaussian(U,V,sigma)
+        % gaussian kernal function
+        %
+        K=zeros(size(U,1),size(V,1));
+        vari_num=size(U,2);
+        for vari_index=1:vari_num
+            K=K+(U(:,vari_index)-V(:,vari_index)').^2;
         end
-        predict_fval=sum(alpha.*Y.*X_inner_product__)+b;
-        predict_fval=1/(1+exp(-predict_fval));
-        if predict_fval > 0.5
-            predict_class=1;
-        else
-            predict_class=0;
-        end
+        K=exp(-K*sigma);
     end
 end
 
