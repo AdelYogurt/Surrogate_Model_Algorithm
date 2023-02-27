@@ -19,7 +19,7 @@ if nargin < 7
 end
 
 if isempty(figure_handle)
-    figure_handle=figure(111);
+    figure_handle=figure(51);
 end
 axes_handle=figure_handle.CurrentAxes;
 if isempty(axes_handle)

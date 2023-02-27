@@ -4,7 +4,7 @@ function classifyVisualization...
 % red is 1, blue is -1
 %
 if nargin < 5
-    figure_handle=figure(10);
+    figure_handle=[];
     if nargin < 4
         grid_number=100;
     end
@@ -29,6 +29,9 @@ else
     low_bou=low_bou(:)';
 end
 
+if isempty(figure_handle)
+    figure_handle=figure(10);
+end
 axes_handle=figure_handle.CurrentAxes;
 if isempty(axes_handle)
     axes_handle=axes(figure_handle);

@@ -2,27 +2,23 @@ clc;
 clear;
 close all hidden;
 
-func_low=@(x) highFunction(x);
-func_low_bou=@(x) 0.5+sin(2.5*pi*x)/3;
+% func_low=@(x) highFunction(x);
+% func_low_bou=@(x) 0.5+sin(2.5*pi*x)/3;
+% 
+% X=lhsdesign(30,2);
+% Y=func_low(X);
+% [Y,order]=sort(Y);
+% X=X(order,:);
+% 
+% low_bou=[0,0];
+% up_bou=[1,1];
 
-x_number=30;
-X=lhsdesign(x_number,2);
-Y=zeros(x_number,1);
-for x_index=1:x_number
-    Y(x_index)=func_low(X(x_index,:)');
-end
-[Y,order]=sort(Y);
-X=X(order,:);
+load('C_30.mat');
 
-low_bou=[0,0];
-up_bou=[1,1];
-
-% load('C_100.mat');
-
-CGP_model=classifyGaussProcess...
+[predict_function,CGP_model]=classifyGaussProcess...
     (X,Y);
 figure_handle=figure(1);
-classifyVisualization(CGP_model,low_bou,up_bou,100,figure_handle)
+classifyVisualization(CGP_model,low_bou,up_bou,[],figure_handle)
 
 % draw point
 drawFunction(func_low_bou,0,1,[],[],[],figure_handle)
@@ -30,9 +26,10 @@ drawFunction(func_low_bou,0,1,[],[],[],figure_handle)
 function [predict_function,CGP_model]=classifyGaussProcess...
     (X,Class,hyp)
 % generate gauss classifier model
-% version 6,this version is assembly of gpml-3.6 EP method
+% version 6, this version is assembly of gpml-3.6 EP method
 % X is x_number x variable_number matirx,Y is x_number x 1 matrix
 % low_bou,up_bou is 1 x variable_number matrix
+% only support binary classification, -1 and 1
 %
 % input:
 % X, Class, hyp(mean,cov(len))
@@ -439,17 +436,15 @@ CGP_model.hyp=hyp;
 
 end
 
-function fval=lowFunction(x)
-if 0.45+sin(2.2*pi*x(1))/2.5-x(2) > 0
-    fval=1;
-else
-    fval=-1;
+function Class=lowFunction(X)
+index = 0.45+sin(2.2*pi*X(:,1))/2.5-xX(:,2) > 0;
+Class=zeros(size(X,1),1);
+Class(index)=1;
+Class(~index)=-1;
 end
-end
-function fval=highFunction(x)
-if 0.5+sin(2.5*pi*x(1))/3-x(2) > 0
-    fval=1;
-else
-    fval=-1;
-end
+function Class=highFunction(X)
+index = 0.5+sin(2.5*pi*X(:,1))/3-X(:,2) > 0;
+Class=zeros(size(X,1),1);
+Class(index)=1;
+Class(~index)=-1;
 end

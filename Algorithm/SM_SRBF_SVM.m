@@ -194,7 +194,7 @@ end
 % hyper parameter
 sample_number_initial=min((variable_number+1)*(variable_number+2)/2,5*variable_number);
 sample_number_iteration=variable_number;
-sample_number_data=10*sample_number_initial;
+sample_number_data=100*sample_number_initial;
 eta=1/variable_number; % space decrease coefficient
 
 penalty_SVM=100;
@@ -204,7 +204,7 @@ filter_torlance=1e-3;
 protect_range=1e-4;
 
 data_library_name='optimal_data_library';
-file_result = fopen('result_total.txt','a');
+file_result=fopen('result_total.txt','a');
 fprintf(file_result,'%s\n',datetime);
 fclose(file_result);
 clear('file_result');
@@ -213,7 +213,7 @@ done=0;NFE=0;iteration=0;
 
 result_x_best=zeros(iteration_max,variable_number);
 result_fval_best=zeros(iteration_max,1);
-x_data_list=lhsdesign(sample_number_data,variable_number).*...
+x_data_list=lhsdesign(sample_number_data,variable_number,'iterations',100).*...
     (up_bou-low_bou)+low_bou;
 
 % if do not input model_function, generate model_function
@@ -487,7 +487,7 @@ while ~done
                 filter_torlance=filter_torlance/2;
             end
 
-            fval_label=zeros(size(x_list,1),1);
+            fval_label=-ones(size(x_list,1),1);
             fval_label(filter_index_list)=1;
 
             % feasible point set label 1
@@ -495,19 +495,14 @@ while ~done
 
             % use filter and train SVM
             [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-                (x_list,fval_label,penalty_SVM,low_bou,up_bou);
+                (x_list,fval_label,penalty_SVM);
             if DRAW_FIGURE_FLAG && variable_number < 3
-                classifySupportVectorMachineVisualization...
+                classifyVisualization...
                     (SVM_model,low_bou,up_bou);
             end
 
             % get data to obtain clustering center
-            x_sup_list=[];
-            for x_index=1:sample_number_data
-                if  SVM_predict_function(x_data_list(x_index,:))==1
-                    x_sup_list=[x_sup_list;x_data_list(x_index,:)];
-                end
-            end
+            x_sup_list=x_data_list(SVM_predict_function(x_data_list) == 1,:);
 
             if isempty(x_sup_list)
                 % no center found use filter point
@@ -542,8 +537,9 @@ while ~done
             while size(x_sup_list,1) < sample_number_initial/2
                 % step 7-1
                 % classify exist data
+                % modify
                 %             fval_thresh=fval_thresh+delta_add*(max(fval_list)-min(fval_list));
-                fval_label=zeros(size(x_list,1),1);
+                fval_label=-ones(size(x_list,1),1);
                 for x_index=1:size(x_list,1)
                     if fval_list(x_index) <= fval_thresh
                         fval_label(x_index)=1;
@@ -555,16 +551,13 @@ while ~done
                 % step 7-2
                 % get a large number of x point, use SVM to predict x point
                 [SVM_predict_function,SVM_model]=classifySupportVectorMachine...
-                    (x_list,fval_label,penalty_SVM,low_bou,up_bou);
+                    (x_list,fval_label,penalty_SVM);
                 if DRAW_FIGURE_FLAG && variable_number < 3
                     classifyVisualization...
                         (SVM_model,low_bou,up_bou);
                 end
-                for x_index=1:sample_number_data
-                    if  SVM_predict_function(x_data_list(x_index,:)')==1
-                        x_sup_list=[x_sup_list;x_data_list(x_index,:)];
-                    end
-                end
+                % get data to obtain clustering center
+                x_sup_list=x_data_list(SVM_predict_function(x_data_list) == 1,:);
             end
         end
 
@@ -601,7 +594,8 @@ while ~done
         %     [~,x_updata_list,~]=getLatinHypercube...
         %         (sample_number_iteration+size(x_list_exist,1),variable_number,x_list_exist,...
         %         low_bou_ISR,up_bou_ISR,cheapcon_function);
-        x_updata_list=(up_bou_ISR-low_bou_ISR).*lhsdesign(sample_number_iteration,variable_number)+low_bou_ISR;
+        x_updata_list=lhsdesign(sample_number_iteration,variable_number)...
+            .*(up_bou_ISR-low_bou_ISR)+low_bou_ISR;
 
     end
 
@@ -933,16 +927,15 @@ end
 
 %% SVM
 function [predict_function,SVM_model]=classifySupportVectorMachine...
-    (X,Class,C,low_bou,up_bou,kernel_function)
-% generate support vector machine model version 0
-% version 0 use fmincon to get alpha
-% only support binary classification, 0 and 1
+    (X,Class,C,kernel_function)
+% generate support vector machine model
+% use fmincon to get alpha
+% only support binary classification, -1 and 1
 % X, Y is x_number x variable_number matrix
 % C is penalty factor, default is empty
 % kernel_function default is gauss kernal function
-% kernel_function should be @(x1,x2) ...
 %
-if nargin < 6
+if nargin < 4
     kernel_function=[];
     if nargin < 3
         C=[];
@@ -952,44 +945,28 @@ end
 [x_number,variable_number]=size(X);
 
 % normalization data
-if nargin < 5
-    up_bou=max(X);
-    if nargin < 4
-        low_bou=min(X);
-    end
-end
-X_nomlz=(X-low_bou)./(up_bou-low_bou);
+aver_X=mean(X);
+stdD_X=std(X);
+index__=find(stdD_X == 0);
+if  ~isempty(index__),  stdD_X(index__)=1; end
+X_nomlz=(X-aver_X)./stdD_X;
 
-% transfer class into y
 Y=Class;
-for x_index=1:x_number
-    if Y(x_index) == 0
-        Y(x_index)=-1;
-    end
-end
 
 % default kernal function
 if isempty(kernel_function)
-    sigma=-100*log(1/sqrt(x_number))/variable_number^2;
-    kernel_function=@(x1,x2) exp(-((x1-x2)'*(x1-x2))*sigma);
+    % notice after standard normal distribution normalize
+    % X usually distribution in -2 to 2, so divide by 16
+    sigma=-100*log(1/sqrt(x_number))/variable_number^2/16;
+    kernel_function=@(U,V) kernelGaussian(U,V,sigma);
 end
 
 % initialization kernal function process X_cov
-X_cov=zeros(x_number);
-for rank_index=1:x_number
-    for colume_index=1:rank_index-1
-        X_cov(rank_index,colume_index)=...
-            X_cov(colume_index,rank_index);
-    end
-    for colume_index=rank_index:x_number
-        X_cov(rank_index,colume_index)=...
-            kernel_function(X_nomlz(rank_index,:)',X_nomlz(colume_index,:)');
-    end
-end
+K=kernel_function(X_nomlz,X_nomlz);
 
 % min SVM object function to get alpha
-object_function_SVM=@(alpha) -objectFunctionSVM(alpha,X_cov,Y);
-alpha_initial=ones(x_number,1)*0.5;
+object_function=@(alpha) -objectFunction(alpha,K,Y);
+alpha=ones(x_number,1)*0.5;
 low_bou_fmincon=0*ones(x_number,1);
 if isempty(C) || C==0
     up_bou_fmincon=[];
@@ -997,63 +974,63 @@ else
     up_bou_fmincon=C*ones(x_number,1);
 end
 Aeq=Y';
-fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp');
-alpha=fmincon(object_function_SVM,alpha_initial,...
+fmincon_options = optimoptions('fmincon','Display','none','Algorithm','sqp');
+alpha=fmincon(object_function,alpha,...
     [],[],Aeq,0,low_bou_fmincon,up_bou_fmincon,[],fmincon_options);
 
 % obtain other paramter
-w=sum(alpha.*Y.*X_nomlz);
-index_list=find(alpha > 1e-6);
-
 alpha_Y=alpha.*Y;
-alpha_Y_cov=X_cov*alpha_Y;
+
+w=sum(alpha_Y.*X_nomlz);
+index_list=find(alpha > 1e-6); % support vector
+alpha_Y_cov=K*alpha_Y;
 b=sum(Y(index_list)-alpha_Y_cov(index_list))/length(index_list);
 
 % generate predict function
 predict_function=@(x) classifySupportVectorMachinePredictor...
-    (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function);
+    (x,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_function);
 
 % output model
 SVM_model.X=X;
 SVM_model.Class=Class;
 SVM_model.Y=Y;
 SVM_model.X_nomlz=X_nomlz;
-SVM_model.low_bou=low_bou;
-SVM_model.up_bou=up_bou;
+SVM_model.aver_X=aver_X;
+SVM_model.stdD_X=stdD_X;
 SVM_model.alpha=alpha;
 SVM_model.w=w;
 SVM_model.b=b;
 SVM_model.kernel_function=kernel_function;
 SVM_model.predict_function=predict_function;
 
-    function fval=objectFunctionSVM(alpha,X_inner_product,Y)
+    function fval=objectFunction(alpha,K,Y)
         % support vector machine maximum object function
         %
         alpha=alpha(:);
         alpha_Y__=alpha.*Y;
-        fval=sum(alpha)-alpha_Y__'*X_inner_product*alpha_Y__/2;
+        fval=sum(alpha)-alpha_Y__'*K*alpha_Y__/2;
     end
-    function [predict_class,predict_fval]=classifySupportVectorMachinePredictor...
-            (x,X_nomlz,Y,alpha,b,low_bou,up_bou,kernel_function)
-        % predict value of x is 1 or -1
+    function [Class_pred,Probability]=classifySupportVectorMachinePredictor...
+            (X_pred,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_function)
+        % predict_fval is 1 or -1, predict_class is 1 or 0
+        %
         % x input is colume vector
         %
-        x=x(:);
-
-        x_number__=size(X_nomlz,1);
-        x_nomlz=(x-low_bou')./(up_bou'-low_bou');
-        X_inner_product__=zeros(x_number__,1);
-        for x_index__=1:x_number__
-            X_inner_product__(x_index__)=...
-                kernel_function(X_nomlz(x_index__,:)',x_nomlz);
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        K_pred=kernel_function(X_pred_nomlz,X_nomlz);
+        Probability=K_pred*alpha_Y+b;
+        Probability=1./(1+exp(-Probability));
+        Class_pred=Probability > 0.5;
+    end
+    function K=kernelGaussian(U,V,sigma)
+        % gaussian kernal function
+        %
+        K=zeros(size(U,1),size(V,1));
+        vari_num=size(U,2);
+        for vari_index=1:vari_num
+            K=K+(U(:,vari_index)-V(:,vari_index)').^2;
         end
-        predict_fval=sum(alpha.*Y.*X_inner_product__)+b;
-        predict_fval=1/(1+exp(-predict_fval));
-        if predict_fval > 0.5
-            predict_class=1;
-        else
-            predict_class=0;
-        end
+        K=exp(-K*sigma);
     end
 end
 
