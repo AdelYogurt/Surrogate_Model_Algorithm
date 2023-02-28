@@ -30,18 +30,18 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-variable_number=4;
-object_function=@(x) benchmark.singleROSObject(x);
-object_function_LF=@(x) benchmark.singleROSObjectLow(x);
-A=[];
-B=[];
-Aeq=[];
-Beq=[];
-low_bou=[-2,-2,-2,-2];
-up_bou=[2,2,2,2];
-nonlcon_function=[];
-nonlcon_function_LF=[];
-cheapcon_function=[];
+% variable_number=4;
+% object_function=@(x) benchmark.singleROSObject(x);
+% object_function_LF=@(x) benchmark.singleROSObjectLow(x);
+% A=[];
+% B=[];
+% Aeq=[];
+% Beq=[];
+% low_bou=[-2,-2,-2,-2];
+% up_bou=[2,2,2,2];
+% nonlcon_function=[];
+% nonlcon_function_LF=[];
+% cheapcon_function=[];
 
 % variable_number=2;
 % object_function=@(x) benchmark.singleG06Object(x);
@@ -106,45 +106,46 @@ cheapcon_function=[];
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-% variable_number=20;
-% object_function=@(x) benchmark.singleEP20Object(x);
-% object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
-% A=[];
-% B=[];
-% Aeq=[];
-% Beq=[];
-% low_bou=ones(1,variable_number)*-30;
-% up_bou=ones(1,variable_number)*30;
-% nonlcon_function=[];
-% nonlcon_function_LF=[];
-% cheapcon_function=[];
+variable_number=20;
+object_function=@(x) benchmark.singleEP20Object(x);
+object_function_LF=@(x) benchmark.singleEP20ObjectLow(x);
+A=[];
+B=[];
+Aeq=[];
+Beq=[];
+low_bou=ones(1,variable_number)*-30;
+up_bou=ones(1,variable_number)*30;
+nonlcon_function=[];
+nonlcon_function_LF=[];
+cheapcon_function=[];
 
 % x_initial=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % [x_best,fval_best,~,output]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,[],optimoptions('fmincon','Algorithm','sqp','MaxFunctionEvaluations',10000))
 
-% % single run
-%
-% delete([data_library_name,'.txt']);
-% delete('result_total.txt');
-% 
-% [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
-%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-%     cheapcon_function,[],200,300)
-% result_x_best=output.result_x_best;
-% result_fval_best=output.result_fval_best;
-% 
-% figure(1);
-% plot(result_fval_best);
-% 
-% figure(2);
-% [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
-%     (data_library_name,low_bou,up_bou);
-% scatter3(x_list(:,1),x_list(:,2),fval_list);
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
+%% single run
 
-% % repeat run
+delete([data_library_name,'.txt']);
+delete('result_total.txt');
+
+[x_best,fval_best,NFE,output]=optimalSurrogateSADE...
+    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+    cheapcon_function,[],200,300)
+result_x_best=output.result_x_best;
+result_fval_best=output.result_fval_best;
+
+figure(1);
+plot(result_fval_best);
+
+figure(2);
+[x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
+    (data_library_name,low_bou,up_bou);
+scatter3(x_list(:,1),x_list(:,2),fval_list);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+
+%% repeat run
+
 % repeat_number=10;
 % result_fval=zeros(repeat_number,1);
 % for repeat_index=1:repeat_number
@@ -199,7 +200,7 @@ if nargin < 7
 end
 
 DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=0; % whether print data
+INFORMATION_FLAG=1; % whether print data
 CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 % hyper parameter
@@ -209,7 +210,7 @@ scaling_factor=0.8; % F
 cross_rate=0.8;
 
 % max fval when normalize fval, con, coneq
-nomlz_fval=10;
+nomlz_fval=1;
 
 protect_range=1e-4;
 
@@ -295,16 +296,16 @@ search_flag=0; % global search or local search, 0 is global and 1 is local
 while ~done
     infor_search_flag=search_flag;
     % nomalization con with average
-    fval_max=mean(abs(fval_list),1);
+    fval_max=max(abs(fval_list),[],1);
     fval_nomlz_list=fval_list./fval_max*nomlz_fval;
     if ~isempty(con_list)
-        con_max_list=mean(abs(con_list),1);
+        con_max_list=max(abs(con_list),[],1);
         con_nomlz_list=con_list./con_max_list*nomlz_fval;
     else
         con_nomlz_list=[];
     end
     if ~isempty(coneq_list)
-        coneq_max_list=mean(abs(coneq_list),1);
+        coneq_max_list=max(abs(coneq_list),[],1);
         coneq_nomlz_list=coneq_list./coneq_max_list*nomlz_fval;
     else
         coneq_nomlz_list=[];
@@ -333,11 +334,6 @@ while ~done
             coneq_list=[coneq_list;coneq_global_infill];
         end
 
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            interpVisualize(kriging_model_fval,low_bou,up_bou);
-            line(x_global_infill(1),x_global_infill(2),fval_global_infill./fval_max*nomlz_fval,'Marker','o','color','r');
-        end
-
         % whether impove pupolation, if imporve, continue global
         % notice last one is x_local fval, con and coneq
         search_flag=1;
@@ -363,12 +359,19 @@ while ~done
                 search_flag=0;
             end
         end
+    
+        if DRAW_FIGURE_FLAG && variable_number < 3
+            interpVisualize(kriging_model_fval,low_bou,up_bou);
+            line(x_global_infill(1),x_global_infill(2),fval_global_infill./fval_max*nomlz_fval,'Marker','o','color','r');
+        end
     else
         % local search
-        [x_local_infill,RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
+        [x_local_infill,feasiable_index_list,...
+            RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
-            population_number,RBF_number);
+            population_number,RBF_number,...
+            expensive_nonlcon_flag);
         
         [x_local_infill,fval_local_infill,con_local_infill,coneq_local_infill,NFE_p,repeat_index]=dataLibraryUpdataProtect...
             (data_library_name,model_function,x_local_infill,...
@@ -383,11 +386,6 @@ while ~done
             coneq_list=[coneq_list;coneq_local_infill];
         end
         
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            interpVisualize(RBF_model_fval,low_bou,up_bou);
-            line(x_local_infill(1),x_local_infill(2),fval_local_infill./fval_max*nomlz_fval,'Marker','o','color','r');
-        end
-
         % whether impove pupolation, if imporve, continue local
         % notice last one is x_local fval, con and coneq
         search_flag=0;
@@ -413,6 +411,11 @@ while ~done
             if fval_local_infill <= min_fval  % imporve
                 search_flag=1;
             end
+        end
+
+        if DRAW_FIGURE_FLAG && variable_number < 3
+            interpVisualize(RBF_model_fval,low_bou,up_bou);
+            line(x_local_infill(1),x_local_infill(2),fval_local_infill./fval_max*nomlz_fval,'Marker','o','color','r');
         end
     end
     
@@ -571,8 +574,10 @@ output.result_fval_best=result_fval_best;
             fval_DE_max=max(fval_DE_list,[],1);
             fval_var_DE_min=min(fval_var_DE_list,[],1);
             fval_var_DE_max=max(fval_var_DE_list,[],1);
-            DE_fitness_list=-(fval_DE_list-fval_DE_min)/(fval_DE_max-fval_DE_min)+...
-                0.5*(fval_var_DE_list-fval_var_DE_min)/(fval_var_DE_max-fval_var_DE_min);
+            % modify
+            DE_fitness_list=-fval_DE_list+fval_var_DE_list;
+%             DE_fitness_list=-(fval_DE_list-fval_DE_min)/(fval_DE_max-fval_DE_min)+...
+%                 (fval_var_DE_list-fval_var_DE_min)/(fval_var_DE_max-fval_var_DE_min);
             [~,fitness_best_index]=max(DE_fitness_list);
             fitness_best_index=fitness_best_index(1);
             x_global_infill=x_DE_list(fitness_best_index,:);
@@ -580,23 +585,29 @@ output.result_fval_best=result_fval_best;
         
     end
 
-    function [x_local_infill,RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
+    function [x_local_infill,feasiable_index_list,...
+            RBF_model_fval,RBF_model_con,RBF_model_coneq]=searchLocal...
             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
             variable_number,low_bou,up_bou,cheapcon_function,nonlcon_torlance,...
-            population_number,RBF_number)
+            population_number,RBF_number,...
+            expensive_nonlcon_flag)
         % find local infill point function
         %
         
-        % step 8
-%         % rand select initial local point from x_list
-%         x_index=randi(population_number);
-%         x_initial=x_list(x_index,:);
-        
-        % rank x_list data and select best point as initial local point
-        [x_list_rank,~,~,~]=rankData...
+        [x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list]=rankData...
             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
             cheapcon_function,nonlcon_torlance);
-        x_initial=x_list_rank(1,:);
+
+        % step 8
+        % rand select initial local point from x_list
+        x_index=randi(population_number);
+        x_initial=x_list(x_index,:);
+        
+%         % rank x_list data and select best point as initial local point
+%         [x_list_rank,~,~,~]=rankData...
+%             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
+%             cheapcon_function,nonlcon_torlance);
+%         x_initial=x_list_rank(1,:);
         
         % select nearest point to construct RBF
         RBF_number=min(RBF_number,size(x_list,1));
@@ -622,6 +633,21 @@ output.result_fval_best=result_fval_best;
         object_function_surrogate=output_RBF.object_function_surrogate;
         nonlcon_function_surrogate=output_RBF.nonlcon_function_surrogate;
         
+        feasiable_index_list=[];
+        if expensive_nonlcon_flag
+            if ~isempty(nonlcon_function_surrogate)
+                [con_DE_list,coneq_DE_list]=nonlcon_function_surrogate(x_DE_list);
+            end
+            total_con=[con_DE_list,abs(coneq_DE_list)];
+            for x_index=1:4*population_number
+                if (max(total_con(x_index,:)) < nonlcon_torlance)
+                    feasiable_index_list=[feasiable_index_list,x_index];
+                end
+            end
+        else
+            feasiable_index_list=1:4*population_number;
+        end
+
         % get local infill point
         % obtian total constraint function
         if ~isempty(nonlcon_function_surrogate) || ~isempty(cheapcon_function)
@@ -1078,7 +1104,7 @@ fval_reg_nomlz=(reg_function(X)-0)./1;
 fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
-    'MaxIterations',10,'SpecifyObjectiveGradient',false);
+    'MaxIterations',20,'SpecifyObjectiveGradient',false);
 low_bou_hyp=-4*ones(1,variable_number);
 up_bou_hyp=4*ones(1,variable_number);
 object_function_hyp=@(hyp) objectNLLKriging...
@@ -1355,7 +1381,7 @@ X_nomlz=(X-aver_X)./stdD_X;
 Y_nomlz=(Y-aver_Y)./stdD_Y;
 
 if isempty(basis_function)
-    c=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
+    c=(prod(max(X_nomlz)-min(X_nomlz))/x_number)^(1/variable_number);
     basis_function=@(r) exp(-(r.^2)/c);
 end
 

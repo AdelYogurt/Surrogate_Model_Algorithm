@@ -3,9 +3,10 @@ clear;
 close all hidden;
 
 load('PK.mat');
-[predict_function,radialbasis_model]=interpRadialBasisPreModel(X,Y);
+basis_function=@(r) -r.^3;
+[predict_function,radialbasis_model]=interpRadialBasisPreModel(X,Y,basis_function);
 figure_handle=figure(1);
-interpVisualize(radialbasis_model,low_bou,up_bou,figure_handle)
+interpVisualize(radialbasis_model,low_bou,up_bou,[],[],[],figure_handle)
 
 function [predict_function,radialbasis_model]=interpRadialBasisPreModel...
     (X,Y,basis_function)
@@ -37,7 +38,7 @@ X_nomlz=(X-aver_X)./stdD_X;
 Y_nomlz=(Y-aver_Y)./stdD_Y;
 
 if isempty(basis_function)
-    c=(prod(max(X_nomlz)-min(Y_nomlz))/x_number)^(1/variable_number);
+    c=(prod(max(X_nomlz)-min(X_nomlz))/x_number)^(1/variable_number);
     basis_function=@(r) exp(-(r.^2)/c);
 end
 
