@@ -91,7 +91,7 @@ low_bou_hyp=-4*ones(1,2*variable_number+4);
 up_bou_hyp=4*ones(1,2*variable_number+4);
 hyp_x=fmincon(object_function,hyp_x,[],[],[],[],low_bou_hyp,up_bou_hyp,[],...
     optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,...
-    'MaxFunctionEvaluations',20,'OptimalityTolerance',1e-1));
+    'MaxFunctionEvaluations',20,'OptimalityTolerance',1e-6));
 
 hyp.mean=hyp_x(1);
 hyp.cov=hyp_x(2:end);
