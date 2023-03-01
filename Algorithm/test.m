@@ -17,8 +17,7 @@ Q3=getQuantile(data,0.75);
 IQR=Q3-Q1;
 
 normal_index=1:x_number;
-normal_index(data < (Q1-1.5*IQR))=[];
-normal_index(data > (Q3+1.5*IQR))=[];
+normal_index((data < (Q1-1.5*IQR) | data > (Q3+1.5*IQR)))=[];
 
 quantile=[min(data(normal_index));
     getQuantile(data(normal_index),0.25);

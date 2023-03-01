@@ -82,7 +82,7 @@ elseif size(x_list,2) == 2
     try
         % generate all predict list
         predict_x=[X_draw(:),Y_draw(:)];
-        [~,predict_result]=predict_function(predict_x);
+        [predict_result]=predict_function(predict_x);
         predict_result=reshape(predict_result,grid_number+1,grid_number+1);
     catch
         % if not support multi input
