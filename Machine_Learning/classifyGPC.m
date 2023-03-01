@@ -25,14 +25,14 @@ drawFunction(func_low_bou,0,1,[],[],[],figure_handle)
 
 function [predict_function,CGP_model]=classifyGaussProcess...
     (X,Class,hyp)
-% generate gauss classifier model
+% generate gaussian process classifier model
 % version 6, this version is assembly of gpml-3.6 EP method
 % X is x_number x variable_number matirx,Y is x_number x 1 matrix
 % low_bou,up_bou is 1 x variable_number matrix
 % only support binary classification, -1 and 1
 %
 % input:
-% X, Class, hyp(mean,cov(len))
+% X, Class, hyp(mean, cov(len, eta))
 %
 % abbreviation:
 % pred: predicted,nomlz: normalization,num: number
@@ -41,7 +41,7 @@ function [predict_function,CGP_model]=classifyGaussProcess...
 [x_number,variable_number]=size(X);
 if nargin < 5
     hyp.mean=0;
-    hyp.cov=zeros(1,variable_number);
+    hyp.cov=zeros(1,variable_number+1);
 end
 
 % normalization data
@@ -51,10 +51,17 @@ index__=find(stdD_X == 0);
 if  ~isempty(index__),  stdD_X(index__)=1; end
 X_nomlz=(X-aver_X)./stdD_X;
 
-object_function=@(x) objectFunctionGPC(x,{@infEP},{@meanConst},{@calCov},{@likErf},X_nomlz,Class);
+object_function=@(x) objectNLLGPC(x,{@infEP},{@meanConst},{@calCov},{@likErf},X_nomlz,Class);
 hyp_x=[hyp.mean,hyp.cov];
-hyp_x=fmincon(object_function,hyp_x,[],[],[],[],[],[],[],...
-    optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,'MaxFunctionEvaluations',20));
+
+% [fval,gradient]=object_function(hyp_x)
+% [fval_differ,gradient_differ]=differ(object_function,hyp_x)
+
+hyp_low_bou=-4*ones(1,variable_number+2);
+hyp_up_bou=4*ones(1,variable_number+2);
+hyp_x=fmincon(object_function,hyp_x,[],[],[],[],hyp_low_bou,hyp_up_bou,[],...
+    optimoptions('fmincon','Display','iter-detailed','SpecifyObjectiveGradient',true,...
+    'MaxFunctionEvaluations',20,'OptimalityTolerance',1e-1));
 
 hyp.mean=hyp_x(1);
 hyp.cov=hyp_x(2:end);
@@ -72,7 +79,7 @@ CGP_model.stdD_X=stdD_X;
 CGP_model.predict_function=predict_function;
 CGP_model.hyp=hyp;
 
-    function [fval,gradient]=objectFunctionGPC(x,inf,mean,cov,lik,X,Y)
+    function [fval,gradient]=objectNLLGPC(x,inf,mean,cov,lik,X,Y)
         hyp_iter.mean=x(1);
         hyp_iter.cov=x(2:end);
         hyp_iter.lik=[];
@@ -138,46 +145,52 @@ CGP_model.hyp=hyp;
         class(index_list)=-1;
     end
 
-    function [K,dK_dvar]=calCov(cov,X,Z)
+    function [K,dK_dcov]=calCov(cov,X,Z)
         % obtain covariance of x
+        % cov: eta, len(equal to 1/len.^2)
+        %
+        % k=eta*exp(-sum(x_dis*len)/vari_num);
         %
         [x_num,vari_num]=size(X);
 
         len=exp(cov(1:vari_num));
+        eta=exp(cov(vari_num+1));
 
         % predict
         if nargin > 2 && nargout < 2 && ~isempty(Z)
             if strcmp(Z,'diag')
-                K=1;
+                K=eta;
             else
                 [z_number,vari_num]=size(Z);
-                % initializate square of X inner distance
+                % initializate square of X inner distance/ vari_num
                 K=zeros(x_num,z_number);
                 for len_index=1:vari_num
-                    K=K+(X(:,len_index)-Z(:,len_index)').^2/(len(len_index)^2);
+                    K=K+(X(:,len_index)-Z(:,len_index)').^2*len(len_index)/vari_num;
                 end
-                K=exp(-K/2);
+                K=eta*exp(-K);
             end
         else
-            % initializate square of X inner distance
-            sq_dis=zeros(x_num,x_num,vari_num);
+            % initializate square of X inner distance sq
+            sq_dis_v=zeros(x_num,x_num,vari_num);
             for len_index=1:vari_num
-                sq_dis(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2;
+                sq_dis_v(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2/vari_num;
             end
 
             % exp of x__x with theta
             exp_dis=zeros(x_num);
             for len_index=1:vari_num
-                exp_dis=exp_dis+sq_dis(:,:,len_index)/2/len(len_index)^2;
+                exp_dis=exp_dis+sq_dis_v(:,:,len_index)*len(len_index);
             end
             exp_dis=exp(-exp_dis);
-            K=exp_dis;
+            K=exp_dis*eta;
 
             if nargout >= 2
-                dK_dvar=cell(1,vari_num);
+                dK_dcov=cell(1,vari_num+1);
                 for len_index=1:vari_num
-                    dK_dvar{len_index}=K.*sq_dis(:,:,len_index)/len(len_index)^2;
+                    dK_dcov{len_index}=-K.*sq_dis_v(:,:,len_index)*len(len_index);
                 end
+
+                dK_dcov{vari_num+1}=K;
             end
         end
 

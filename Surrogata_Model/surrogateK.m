@@ -186,6 +186,7 @@ kriging_model.predict_function=predict_function;
             end
         end
     end
+
     function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % kriging interpolation kernel function
@@ -207,6 +208,7 @@ kriging_model.predict_function=predict_function;
         sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
         
     end
+
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
@@ -245,11 +247,13 @@ kriging_model.predict_function=predict_function;
         Y_pred=Y_pred*stdD_Y+aver_Y;
         Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
     end
+
     function F_reg=regZero(X)
         % zero order base funcion
         %
         F_reg=ones(size(X,1),1); % zero
     end
+
     function F_reg=regLinear(X)
         % first order base funcion
         %

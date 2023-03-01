@@ -2,36 +2,38 @@ clc;
 clear;
 close all hidden;
 
-func_low=@(x) lowFunction(x);
-func_high=@(x) highFunction(x);
+% func_low=@(x) lowFunction(x);
+% func_high=@(x) highFunction(x);
+% 
+% func_low_bou=@(x) 0.45+sin(2.2*pi*x)/2.5;
+% func_high_bou=@(x) 0.5+sin(2.5*pi*x)/3;
+% 
+% variable_number=2;
+% 
+% xLF_number=50;
+% XLF=lhsdesign(xLF_number,variable_number);
+% ClassLF=zeros(xLF_number,1);
+% for x_index=1:xLF_number
+%     ClassLF(x_index)=func_low(XLF(x_index,:));
+% end
+% 
+% [ClassLF,order]=sort(ClassLF);
+% XLF=XLF(order,:);
+% 
+% xHF_number=20;
+% XHF=lhsdesign(xHF_number,variable_number);
+% ClassHF=zeros(xHF_number,1);
+% for x_index=1:xHF_number
+%     ClassHF(x_index)=func_high(XHF(x_index,:));
+% end
+% 
+% [ClassHF,order]=sort(ClassHF);
+% XHF=XHF(order,:);
+% 
+% low_bou=[0,0];
+% up_bou=[1,1];
 
-func_low_bou=@(x) 0.45+sin(2.2*pi*x)/2.5;
-func_high_bou=@(x) 0.5+sin(2.5*pi*x)/3;
-
-variable_number=2;
-
-xLF_number=50;
-XLF=lhsdesign(xLF_number,variable_number);
-ClassLF=zeros(xLF_number,1);
-for x_index=1:xLF_number
-    ClassLF(x_index)=func_low(XLF(x_index,:));
-end
-
-[ClassLF,order]=sort(ClassLF);
-XLF=XLF(order,:);
-
-xHF_number=34;
-XHF=lhsdesign(xHF_number,variable_number);
-ClassHF=zeros(xHF_number,1);
-for x_index=1:xHF_number
-    ClassHF(x_index)=func_high(XHF(x_index,:));
-end
-
-[ClassHF,order]=sort(ClassHF);
-XHF=XHF(order,:);
-
-low_bou=[0,0];
-up_bou=[1,1];
+load('CMF_20.mat');
 
 [predict_function,CGPMF_model]=classifyGaussProcessMultiFidelity...
     (XHF,ClassHF,XLF,ClassLF);
@@ -44,18 +46,23 @@ drawFunction(func_high_bou,0,1,[],[],[],figure_handle)
 
 function [predict_function,CGPMF_model]=classifyGaussProcessMultiFidelity...
     (XHF,ClassHF,XLF,ClassLF,hyp)
-% generate gauss classifier model
+% generate multi fidelity gaussian process classifier model
 % version 6,this version is assembly of gpml-3.6 EP method
 % X, XHF, XLF is x_number x variable_number matirx
 % Class, ClassH, ClassLF is x_number x 1 matrix
 % low_bou, up_bou is 1 x variable_number matrix
 %
 % input:
-% XHF, ClassHF, XLF, ClassLF, hyp(mean,cov(len_H, len_L, rho))
+% XHF, ClassHF, XLF, ClassLF, hyp(mean,cov(lenD, etaD, lenL, etaL, rho))
 %
 % abbreviation:
 % pred: predicted,nomlz: normalization,num: number
 % var: variance
+%
+% reference: [1]FSCAB C, PP D, EK E, et al. Multi-fidelity classification
+% using Gaussian processes: Accelerating the prediction of large-scale
+% computational models [J]. Computer Methods in Applied Mechanics and
+% Engineering, 357(C): 112602-.
 %
 X=[XHF;XLF];
 Class=[ClassHF;ClassLF];
@@ -64,7 +71,7 @@ x_HF_number=size(XHF,1);
 x_LF_number=size(XLF,1);
 if nargin < 5
     hyp.mean=0;
-    hyp.cov=zeros(1,variable_number*2+1);
+    hyp.cov=zeros(1,variable_number*2+3);
 end
 
 % normalization data
@@ -74,13 +81,17 @@ index__=find(stdD_X == 0);
 if  ~isempty(index__),  stdD_X(index__)=1; end
 X_nomlz=(X-aver_X)./stdD_X;
 
-object_function=@(x) objectFunctionGPC(x,{@infEP},{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
+object_function=@(x) objectNLLMFGPC(x,{@infEP},{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
 hyp_x=[hyp.mean,hyp.cov];
-low_bou_hyp=-4*ones(1,2*variable_number+2);
-up_bou_hyp=4*ones(1,2*variable_number+2);
-% up_bou_hyp(end)=0;
+
+% [fval,gradient]=object_function(hyp_x)
+% [fval_differ,gradient_differ]=differ(object_function,hyp_x)
+
+low_bou_hyp=-4*ones(1,2*variable_number+4);
+up_bou_hyp=4*ones(1,2*variable_number+4);
 hyp_x=fmincon(object_function,hyp_x,[],[],[],[],low_bou_hyp,up_bou_hyp,[],...
-    optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,'MaxFunctionEvaluations',10));
+    optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,...
+    'MaxFunctionEvaluations',20,'OptimalityTolerance',1e-1));
 
 hyp.mean=hyp_x(1);
 hyp.cov=hyp_x(2:end);
@@ -100,7 +111,7 @@ CGPMF_model.predict_function=predict_function;
 CGPMF_model.hyp=hyp;
 CGPMF_model.post=post;
 
-    function [fval,gradient]=objectFunctionGPC(x,inf,mean,cov,lik,X,Y)
+    function [fval,gradient]=objectNLLMFGPC(x,inf,mean,cov,lik,X,Y)
         hyp_iter.mean=x(1);
         hyp_iter.cov=x(2:end);
         hyp_iter.lik=[];
@@ -165,18 +176,24 @@ CGPMF_model.post=post;
         class(index_list)=-1;
     end
 
-    function [K,dK_dvar]=calCovMF(cov,X,Z)
+    function [K,dK_dcov]=calCovMF(cov,X,Z)
         % obtain covariance of x
+        % cov: lenD, etaD, lenL, etaL, rho
+        % len equal to 1/len_origin.^2
+        %
+        % % k=eta*exp(-sum(x_dis*theta)/vari_num);
         %
         [x_num,vari_num]=size(X);
 
-        lenH=exp(cov(1:vari_num));
-        lenL=exp(cov(vari_num+(1:vari_num)));
+        lenD=exp(cov(1:vari_num));
+        etaD=exp(cov(vari_num+1));
+        lenL=exp(cov(vari_num+1+(1:vari_num)));
+        etaL=exp(cov(2*(vari_num+1)));
         rho=exp(cov(end));
 
         if nargin > 2 && nargout < 2 && ~isempty(Z)
             if strcmp(Z,'diag')
-                K=rho*rho*1+1;
+                K=rho*rho*etaL+etaD;
                 return
             end
         end
@@ -184,93 +201,99 @@ CGPMF_model.post=post;
         % predict
         if nargin > 2 && nargout < 2 && ~isempty(Z)
             [z_num,vari_num]=size(Z);
-            % initializate square of X inner distance
-            sq_dis=zeros(x_num,z_num,vari_num);
+            % initializate square of X inner distance sq/ vari_num
+            sq_dis_v=zeros(x_num,z_num,vari_num);
             for len_index=1:vari_num
-                sq_dis(:,:,len_index)=(X(:,len_index)-Z(:,len_index)').^2;
+                sq_dis_v(:,:,len_index)=(X(:,len_index)-Z(:,len_index)').^2/vari_num;
             end
 
-            % exp of x__x with H
-            exp_disH=zeros(x_HF_number,z_num);
+            % exp of x__x with D
+            exp_disD=zeros(x_HF_number,z_num);
             for len_index=1:vari_num
-                exp_disH=exp_disH+...
-                    sq_dis(1:x_HF_number,:,len_index)/2/lenH(len_index)^2;
+                exp_disD=exp_disD+...
+                    sq_dis_v(1:x_HF_number,:,len_index)*lenD(len_index);
             end
-            exp_disH=exp(-exp_disH);
+            exp_disD=exp(-exp_disD);
 
             % exp of x__x with L
             exp_disL=zeros(x_num,z_num);
             for len_index=1:vari_num
                 exp_disL=exp_disL+...
-                    sq_dis(1:x_num,:,len_index)/2/lenL(len_index)^2;
+                    sq_dis_v(1:x_num,:,len_index)*lenL(len_index);
             end
             exp_disL=exp(-exp_disL);
 
             K=exp_disL;
-            K(1:x_HF_number,:)=rho*rho*K(1:x_HF_number,:)+exp_disH;
-            K(x_HF_number+1:end,:)=rho*K(x_HF_number+1:end,:);
+            K(1:x_HF_number,:)=rho*rho*etaL*K(1:x_HF_number,:)+etaD*exp_disD;
+            K(x_HF_number+1:end,:)=rho*etaL*K(x_HF_number+1:end,:);
         else
-            % initializate square of X inner distance
-            sq_dis=zeros(x_num,x_num,vari_num);
+            % initializate square of X inner distance sq/ vari_num
+            sq_dis_v=zeros(x_num,x_num,vari_num);
             for len_index=1:vari_num
-                sq_dis(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2;
+                sq_dis_v(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2/vari_num;
             end
 
             % exp of x__x with H
-            exp_disH=zeros(x_HF_number);
+            exp_disD=zeros(x_num);
             for len_index=1:vari_num
-                exp_disH=exp_disH+...
-                    sq_dis(1:x_HF_number,1:x_HF_number,len_index)/2/lenH(len_index)^2;
+                exp_disD(1:x_HF_number,1:x_HF_number)=exp_disD(1:x_HF_number,1:x_HF_number)+...
+                    sq_dis_v(1:x_HF_number,1:x_HF_number,len_index)*lenD(len_index);
             end
-            exp_disH=exp(-exp_disH);
-            KH=exp_disH;
+            exp_disD(1:x_HF_number,1:x_HF_number)=exp(-exp_disD(1:x_HF_number,1:x_HF_number));
+            KD=etaD*exp_disD;
 
             % exp of x__x with L
             exp_disL=zeros(x_num);
             for len_index=1:vari_num
                 exp_disL=exp_disL+...
-                    sq_dis(1:end,1:end,len_index)/2/lenL(len_index)^2;
+                    sq_dis_v(1:end,1:end,len_index)*lenL(len_index);
             end
             exp_disL=exp(-exp_disL);
-            % times rho: HH to rho2, HL to rho, LL to 1
-            rho_exp_disL=exp_disL;
-            rho_exp_disL(1:x_HF_number,1:x_HF_number)=...
-                (rho*rho)*exp_disL(1:x_HF_number,1:x_HF_number);
-            rho_exp_disL(1:x_HF_number,(x_HF_number+1):end)=...
-                rho*exp_disL(1:x_HF_number,(x_HF_number+1):end);
-            rho_exp_disL((x_HF_number+1):end,1:x_HF_number)=...
-                rho_exp_disL(1:x_HF_number,(x_HF_number+1):end)';
+            eta_exp_disL=etaL*exp_disL;
 
-            KL=rho_exp_disL;
-            K=KL;
-            K(1:x_HF_number,1:x_HF_number)=K(1:x_HF_number,1:x_HF_number)+KH;
+            % times rho: HH to rho2, HL to rho, LL to 1
+            KL=eta_exp_disL;
+            KL(1:x_HF_number,1:x_HF_number)=...
+                (rho*rho)*eta_exp_disL(1:x_HF_number,1:x_HF_number);
+            KL(1:x_HF_number,(x_HF_number+1):end)=...
+                rho*eta_exp_disL(1:x_HF_number,(x_HF_number+1):end);
+            KL((x_HF_number+1):end,1:x_HF_number)=...
+                KL(1:x_HF_number,(x_HF_number+1):end)';
+
+            K=KL+KD;
 
             if nargout >= 2
-                dK_dvar=cell(1,2*vari_num+1);
+                dK_dcov=cell(1,2*vari_num+3);
 
-                % len H
+                % len D
                 for len_index=1:vari_num
-                    dK_dlenH=zeros(x_num);
-                    dK_dlenH(1:x_HF_number,1:x_HF_number)=KH.*...
-                        sq_dis(1:x_HF_number,1:x_HF_number,len_index)/lenH(len_index)^2;
-                    dK_dvar{len_index}=dK_dlenH;
+                    dK_dlenD=zeros(x_num);
+                    dK_dlenD(1:x_HF_number,1:x_HF_number)=-KD(1:x_HF_number,1:x_HF_number).*...
+                        sq_dis_v(1:x_HF_number,1:x_HF_number,len_index)*lenD(len_index);
+                    dK_dcov{len_index}=dK_dlenD;
                 end
+
+                % eta D
+                dK_dcov{vari_num+1}=KD;
 
                 % len L
                 for len_index=1:vari_num
-                    dK_dlenL=KL.*sq_dis(:,:,len_index)/lenL(len_index)^2;
-                    dK_dvar{(vari_num)+len_index}=dK_dlenL;
+                    dK_dlenL=-KL.*sq_dis_v(:,:,len_index)*lenL(len_index);
+                    dK_dcov{(vari_num+1)+len_index}=dK_dlenL;
                 end
+
+                % eta L
+                dK_dcov{2*(vari_num+1)}=KL;
 
                 % rho
                 dK_drho=zeros(x_num);
                 dK_drho(1:x_HF_number,1:x_HF_number)=...
-                    2*rho*rho*exp_disL(1:x_HF_number,1:x_HF_number);
+                    2*rho*rho*eta_exp_disL(1:x_HF_number,1:x_HF_number);
                 dK_drho(1:x_HF_number,(x_HF_number+1):end)=...
-                    rho*exp_disL(1:x_HF_number,(x_HF_number+1):end);
+                    rho*eta_exp_disL(1:x_HF_number,(x_HF_number+1):end);
                 dK_drho((x_HF_number+1):end,1:x_HF_number)=...
                     dK_drho(1:x_HF_number,(x_HF_number+1):end)';
-                dK_dvar{end}=dK_drho;
+                dK_dcov{end}=dK_drho;
             end
         end
 
@@ -328,10 +351,6 @@ CGPMF_model.post=post;
             for i = randperm(n)       % iterate EP updates (in random order) over examples
                 tau_ni = 1/Sigma(i,i)-ttau(i);      %  first find the cavity distribution ..
                 nu_ni = mu(i)/Sigma(i,i)-tnu(i);                % .. params tau_ni and nu_ni
-
-                if ~isreal(tau_ni)
-                    disp('?');
-                end
 
                 % compute the desired derivatives of the indivdual log partition function
                 [lZ,dlZ,d2lZ] = feval(lik{:},hyp.lik,y(i),nu_ni/tau_ni,1/tau_ni,inf);
