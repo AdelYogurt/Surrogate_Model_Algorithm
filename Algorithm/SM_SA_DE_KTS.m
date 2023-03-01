@@ -32,7 +32,6 @@ benchmark=BenchmarkFunction();
 % nonlcon_function_LF=[];
 % cheapcon_function=[];
 
-
 % variable_number=20;
 % object_function=@(x) benchmark.singleDP20Object(x);
 % object_function_LF=@(x) benchmark.singleDP20ObjectLow(x);
@@ -1335,15 +1334,15 @@ end
 reg_function=@(X) regLinear(X);
 
 % calculate reg
-fval_reg_nomlz=(reg_function(X)-0)./1;
+fval_reg_nomlz=(reg_function(X)-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
 fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
     'MaxIterations',10,'SpecifyObjectiveGradient',false);
-low_bou_hyp=-4*ones(1,variable_number);
-up_bou_hyp=4*ones(1,variable_number);
+low_bou_hyp=-3*ones(1,variable_number);
+up_bou_hyp=3*ones(1,variable_number);
 object_function_hyp=@(hyp) objectNLLKriging...
     (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
 
@@ -1412,16 +1411,16 @@ kriging_model.predict_function=predict_function;
                 dinv_FTRF_dtheta=-inv_FTRF*...
                     (F_reg'*dinv_cov_dtheta*F_reg)*...
                     inv_FTRF;
-
+                
                 dmiu_dtheta=dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
                     inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
-
+                
                 dY_Fmiu_dtheta=-F_reg*dmiu_dtheta;
 
                 dsigma2_dtheta=(dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
                     Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
                     Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
-
+                
                 dlnsigma2_dtheta=1/sigma2*dsigma2_dtheta;
 
                 dlndetR=trace(inv_cov*dcov_dtheta);
@@ -1430,6 +1429,7 @@ kriging_model.predict_function=predict_function;
             end
         end
     end
+
     function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % kriging interpolation kernel function
@@ -1449,8 +1449,9 @@ kriging_model.predict_function=predict_function;
         beta=inv_FTRF*(F_reg'*inv_cov*Y);
         Y_Fmiu=Y-F_reg*beta;
         sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
-
+        
     end
+
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
@@ -1465,8 +1466,8 @@ kriging_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
-
+        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
+        
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
         for vari_index=1:vari_num
@@ -1476,24 +1477,26 @@ kriging_model.predict_function=predict_function;
         predict_cov=exp(-predict_cov/vari_num);
 
         % predict base fval
-
+        
         Y_pred=fval_reg_pred_nomlz*beta+predict_cov'*gama;
-
+        
         % predict variance
         u__=fval_reg_nomlz'*inv_cov*predict_cov-fval_reg_pred_nomlz';
         Var_pred=sigma_sq*...
             (1+u__'/FTRF*u__+...
             -predict_cov'*inv_cov*predict_cov);
-
+        
         % normalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
         Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
     end
+
     function F_reg=regZero(X)
         % zero order base funcion
         %
         F_reg=ones(size(X,1),1); % zero
     end
+
     function F_reg=regLinear(X)
         % first order base funcion
         %

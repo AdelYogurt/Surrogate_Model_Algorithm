@@ -2,42 +2,42 @@ clc;
 clear;
 close all hidden;
 
-load('MFK.mat')
-
-K_fold=5;
-
-HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
-HF_check=1:100;
-HF_check(HF_select)=[];
-LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
-
-XHF=matPntHF(HF_select,:);
-YHF=matObjHF(HF_select,1);
-
-XLF=matPntLF1(LF_select,:);
-YLF=matObjLF1(LF_select,1);
-
-[predict_function,MK_model]=interpMultiKrigingPreModel...
-    (XHF, YHF, XLF, YLF);
-
-check_error_list=zeros(size(matPntHF,1)/K_fold,1);
-for check_index=1:(size(matPntHF,1)/K_fold)
-    x_index=HF_check(check_index);
-    check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
-end
-disp(['max error: ',num2str(max(check_error_list))]);
-
-% load('Forrester.mat')
-% [predict_function_MK,MK_model]=interpMultiKrigingPreModel...
+% load('MFK.mat')
+% 
+% K_fold=5;
+% 
+% HF_select=randi(100,1,size(matPntHF,1)/K_fold*(K_fold-1));
+% HF_check=1:100;
+% HF_check(HF_select)=[];
+% LF_select=randi(400,1,size(matPntLF1,1)/K_fold*(K_fold-1));
+% 
+% XHF=matPntHF(HF_select,:);
+% YHF=matObjHF(HF_select,1);
+% 
+% XLF=matPntLF1(LF_select,:);
+% YLF=matObjLF1(LF_select,1);
+% 
+% [predict_function,MK_model]=interpMultiKrigingPreModel...
 %     (XHF, YHF, XLF, YLF);
-% [predict_function,K_model]=interpKrigingPreModel(XHF, YHF);
-% [y_MK]=predict_function_MK(x);
-% [y]=predict_function(x);
-% line(x,y_real,'Color','k','LineStyle','-')
-% line(x,y_real_low,'Color','k','LineStyle','--');
-% line(x,y_MK,'Color','b','LineStyle','-')
-% line(x,y,'Color','b','LineStyle','--');
-% legend({'singleForresterObject','singleForresterObjectLow','HK','K'})
+% 
+% check_error_list=zeros(size(matPntHF,1)/K_fold,1);
+% for check_index=1:(size(matPntHF,1)/K_fold)
+%     x_index=HF_check(check_index);
+%     check_error_list(check_index)=(predict_function(matPntHF(x_index,:))-matObjHF(x_index,1));
+% end
+% disp(['max error: ',num2str(max(check_error_list))]);
+
+load('Forrester.mat')
+[predict_function_MK,MK_model]=interpMultiKrigingPreModel...
+    (XHF, YHF, XLF, YLF);
+[predict_function,K_model]=interpKrigingPreModel(XHF, YHF);
+[y_MK]=predict_function_MK(x);
+[y]=predict_function(x);
+line(x,y_real,'Color','k','LineStyle','-')
+line(x,y_real_low,'Color','k','LineStyle','--');
+line(x,y_MK,'Color','b','LineStyle','-')
+line(x,y,'Color','b','LineStyle','--');
+legend({'singleForresterObject','singleForresterObjectLow','HK','K'})
 
 function [predict_function,MK_model]=interpMultiKrigingPreModel...
     (XHF, YHF, XLF, YLF)
@@ -144,15 +144,15 @@ end
 reg_function=@(X) regLinear(X);
 
 % calculate reg
-fval_reg_nomlz=(reg_function(X)-0)./1;
+fval_reg_nomlz=(reg_function(X)-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
 fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
     'MaxIterations',10,'SpecifyObjectiveGradient',false);
-low_bou_hyp=-4*ones(1,variable_number);
-up_bou_hyp=4*ones(1,variable_number);
+low_bou_hyp=-3*ones(1,variable_number);
+up_bou_hyp=3*ones(1,variable_number);
 object_function_hyp=@(hyp) objectNLLKriging...
     (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
 
@@ -178,8 +178,6 @@ predict_function=@(X_predict) interpKrigingPredictor...
 
 kriging_model.X=X;
 kriging_model.Y=Y;
-kriging_model.X_normalize=X_nomlz;
-kriging_model.Y_normalize=Y_nomlz;
 kriging_model.fval_regression=fval_reg_nomlz;
 kriging_model.covariance=covariance;
 kriging_model.inv_covariance=inv_covariance;
@@ -241,6 +239,7 @@ kriging_model.predict_function=predict_function;
             end
         end
     end
+
     function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % kriging interpolation kernel function
@@ -262,6 +261,7 @@ kriging_model.predict_function=predict_function;
         sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
         
     end
+
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
@@ -276,7 +276,7 @@ kriging_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
+        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
         
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
@@ -300,11 +300,13 @@ kriging_model.predict_function=predict_function;
         Y_pred=Y_pred*stdD_Y+aver_Y;
         Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
     end
+
     function F_reg=regZero(X)
         % zero order base funcion
         %
         F_reg=ones(size(X,1),1); % zero
     end
+
     function F_reg=regLinear(X)
         % first order base funcion
         %

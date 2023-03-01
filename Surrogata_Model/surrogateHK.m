@@ -122,8 +122,8 @@ switch nargin
         fval_reg_nomlz_LF=(fval_reg_LF-aver_Y)./stdD_Y;
 
         % optimal to get hyperparameter
-        low_bou_hyp=-4*ones(1,variable_number);
-        up_bou_hyp=4*ones(1,variable_number);
+        low_bou_hyp=-3*ones(1,variable_number);
+        up_bou_hyp=3*ones(1,variable_number);
         fmincon_option=optimoptions('fmincon','Display','none',...
             'OptimalityTolerance',1e-2,...
             'FiniteDifferenceStepSize',1e-5,...,
@@ -410,15 +410,15 @@ end
 reg_function=@(X) regLinear(X);
 
 % calculate reg
-fval_reg_nomlz=(reg_function(X)-0)./1;
+fval_reg_nomlz=(reg_function(X)-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
 fmincon_option=optimoptions('fmincon','Display','none',...
     'OptimalityTolerance',1e-2,...
     'FiniteDifferenceStepSize',1e-5,...,
     'MaxIterations',10,'SpecifyObjectiveGradient',false);
-low_bou_hyp=-4*ones(1,variable_number);
-up_bou_hyp=4*ones(1,variable_number);
+low_bou_hyp=-3*ones(1,variable_number);
+up_bou_hyp=3*ones(1,variable_number);
 object_function_hyp=@(hyp) objectNLLKriging...
     (X_dis_sq,Y_nomlz,x_number,variable_number,hyp,fval_reg_nomlz);
 
@@ -505,6 +505,7 @@ kriging_model.predict_function=predict_function;
             end
         end
     end
+
     function [cov,inv_cov,beta,sigma_sq,inv_FTRF,Y_Fmiu]=interpKriging...
             (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
         % kriging interpolation kernel function
@@ -526,6 +527,7 @@ kriging_model.predict_function=predict_function;
         sigma_sq=(Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
         
     end
+
     function [Y_pred,Var_pred]=interpKrigingPredictor...
             (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
             x_num,vari_num,theta,beta,gama,sigma_sq,...
@@ -540,7 +542,7 @@ kriging_model.predict_function=predict_function;
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        fval_reg_pred_nomlz=(fval_reg_pred-0)./1;
+        fval_reg_pred_nomlz=(fval_reg_pred-aver_Y)./stdD_Y;
         
         % predict covariance
         predict_cov=zeros(x_num,x_pred_num);
@@ -564,11 +566,13 @@ kriging_model.predict_function=predict_function;
         Y_pred=Y_pred*stdD_Y+aver_Y;
         Var_pred=diag(Var_pred)*stdD_Y*stdD_Y;
     end
+
     function F_reg=regZero(X)
         % zero order base funcion
         %
         F_reg=ones(size(X,1),1); % zero
     end
+
     function F_reg=regLinear(X)
         % first order base funcion
         %
