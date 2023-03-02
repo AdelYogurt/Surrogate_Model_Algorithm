@@ -148,18 +148,22 @@ zlabel('Z');
 
 % repeat_number=10;
 % result_fval=zeros(repeat_number,1);
+% Max_NFE=200;
 % for repeat_index=1:repeat_number
 %     delete([data_library_name,'.txt']);
 %     delete('result_total.txt');
 % 
 %     [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
 %         (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-%         cheapcon_function,[],200,300);
+%         cheapcon_function,[],Max_NFE,300);
 %     
 %     result_fval(repeat_index)=fval_best;
 % end
 % 
 % fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+% object_function_name=char(object_function);
+% save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_SADE','.mat']);
+
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSADE...
@@ -939,6 +943,15 @@ function [kriging_model_fval,kriging_model_con,kriging_model_coneq,output]=getKr
 % con is colume vector, coneq is colume vector
 % var_function is same
 %
+if nargin < 7
+    kriging_model_coneq=[];
+    if nargin < 6
+        kriging_model_con=[];
+        if nargin < 5
+            kriging_model_fval=[];
+        end
+    end
+end
 if size(x_list,1) ~= size(fval_list,1)
     error('getKrigingModel: x_list size no equal fval_list size')
 end

@@ -146,8 +146,8 @@ cheapcon_function=[];
 % fmincon_option=optimoptions('fmincon','Algorithm','sqp');
 % [x_best,fval_best,~,output,lambda,grad,hessian]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,fmincon_option)
 
-% % single run
-%
+%% single run
+
 % delete([data_library_name,'.txt']);
 % delete('result_total.txt');
 % 
@@ -169,22 +169,25 @@ cheapcon_function=[];
 % ylabel('Y');
 % zlabel('Z');
 
-% repeat run
+%% repeat run
+
 repeat_number=10;
 result_fval=zeros(repeat_number,1);
+Max_NFE=200;
 for repeat_index=1:repeat_number
     delete([data_library_name,'.txt']);
     delete('result_total.txt');
 
     [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
         (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-        cheapcon_function,[],200);
+        cheapcon_function,[],Max_NFE);
 
     result_fval(repeat_index)=fval_best;
 end
 
 fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
-
+object_function_name=char(object_function);
+save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_SRBF_SVM','.mat']);
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogateSRBFSVM...
@@ -230,8 +233,8 @@ if nargin < 7
     end
 end
 
-DRAW_FIGURE_FLAG=0; % whether draw data
-INFORMATION_FLAG=0; % whether print data
+DRAW_FIGURE_FLAG=1; % whether draw data
+INFORMATION_FLAG=1; % whether print data
 CONVERGENCE_JUDGMENT_FLAG=0; % whether judgment convergence
 
 if isempty(iteration_max)

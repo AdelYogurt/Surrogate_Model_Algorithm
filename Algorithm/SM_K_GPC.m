@@ -6,16 +6,16 @@ data_library_name = 'optimal_data_library';
 
 benchmark = BenchmarkFunction();
 
-variable_number = 2;
-object_function = @(x) benchmark.singleGPObject(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = [-2, -2];
-up_bou = [2, 2];
-nonlcon_function = [];
-cheapcon_function = [];
+% variable_number = 2;
+% object_function = @(x) benchmark.singleGPObject(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = [-2, -2];
+% up_bou = [2, 2];
+% nonlcon_function = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singlePKObject(x);
@@ -66,18 +66,18 @@ cheapcon_function = [];
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1, variable_number)*-30;
-% up_bou = ones(1, variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = ones(1, variable_number)*-30;
+up_bou = ones(1, variable_number)*30;
+nonlcon_function = [];
+nonlcon_function_LF = [];
+cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -148,43 +148,46 @@ cheapcon_function = [];
 
 %% single run
 
-% delete([data_library_name, '.txt']);
-% delete('result_total.txt');
-% 
-% [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
-%     (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-%     cheapcon_function, [], 40)
-% 
-% result_x_best = output.result_x_best;
-% result_fval_best = output.result_fval_best;
-% 
-% figure(1);
-% plot(result_fval_best);
-% 
-% figure(2);
-% [x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
-%     (data_library_name, low_bou, up_bou);
-% scatter3(x_list(:, 1), x_list(:, 2), fval_list);
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
+delete([data_library_name, '.txt']);
+delete('result_total.txt');
+
+[x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
+    (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
+    cheapcon_function, [], 40)
+
+result_x_best = output.result_x_best;
+result_fval_best = output.result_fval_best;
+
+figure(1);
+plot(result_fval_best);
+
+figure(2);
+[x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
+    (data_library_name, low_bou, up_bou);
+scatter3(x_list(:, 1), x_list(:, 2), fval_list);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
 
 %% repeat run
 
-repeat_number = 10;
-result_fval = zeros(repeat_number, 1);
-for repeat_index = 1:repeat_number
-    delete([data_library_name, '.txt']);
-    delete('result_total.txt');
-
-    [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
-        (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-        cheapcon_function, [], 200);
-
-    result_fval(repeat_index) = fval_best;
-end
-
-fprintf('Fval     : lowest = %4.4f, mean = %4.4f, worst = %4.4f, std = %4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+% repeat_number = 10;
+% result_fval = zeros(repeat_number, 1);
+% Max_NFE=200;
+% for repeat_index = 1:repeat_number
+%     delete([data_library_name, '.txt']);
+%     delete('result_total.txt');
+% 
+%     [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
+%         (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
+%         cheapcon_function, [], Max_NFE);
+% 
+%     result_fval(repeat_index) = fval_best;
+% end
+% 
+% fprintf('Fval     : lowest = %4.4f, mean = %4.4f, worst = %4.4f, std = %4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+% object_function_name=char(object_function);
+% save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_K_GPC','.mat']);
 
 %% main
 function [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
@@ -249,8 +252,7 @@ if variable_number <= 5
 else
     sample_number_iteration = 3;
 end
-sample_number_data = 100*sample_number_initial;
-eta = 1/variable_number; % space decrease coefficient
+sample_number_data = 10*sample_number_initial;
 
 m = 2; % clustering parameter
 
@@ -362,21 +364,21 @@ while ~done
     % to avoid too large value influence to kriging model
     % use quantile to delete useless point
     [quantile, normal_index] = findUnusual(fval_nomlz_list);
-    x_list_surrogate = x_list(normal_index, :);
-    fval_nomlz_list_surrogate = fval_nomlz_list(normal_index, :);
+    x_list_model = x_list(normal_index, :);
+    fval_nomlz_list_model = fval_nomlz_list(normal_index, :);
     if ~isempty(con_list)
-        con_nomlz_list_surrogate = con_nomlz_list(normal_index, :);
+        con_nomlz_list_model = con_nomlz_list(normal_index, :);
     else
-        con_nomlz_list_surrogate = [];
+        con_nomlz_list_model = [];
     end
     if ~isempty(coneq_list)
-        coneq_nomlz_list_surrogate = coneq_nomlz_list(normal_index, :);
+        coneq_nomlz_list_model = coneq_nomlz_list(normal_index, :);
     else
-        coneq_nomlz_list_surrogate = [];
+        coneq_nomlz_list_model = [];
     end
     
     [kriging_model_fval, kriging_model_con, kriging_model_coneq, output_kriging] = getKrigingModel...
-        (x_list_surrogate, fval_nomlz_list_surrogate, con_nomlz_list_surrogate, coneq_nomlz_list_surrogate, ...
+        (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model, ...
         kriging_model_fval, kriging_model_con, kriging_model_coneq);
     object_function_surrogate = output_kriging.object_function_surrogate;
     nonlcon_function_surrogate = output_kriging.nonlcon_function_surrogate;
@@ -1901,6 +1903,200 @@ kriging_model.predict_function=predict_function;
         %
         F_reg=[ones(size(X,1),1),X]; % linear
     end
+end
+
+function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,output]=getRadialBasisModel...
+    (x_list,fval_list,con_list,coneq_list)
+% base on library_data to create radialbasis model and function
+% if input model, function will updata model
+% object_function is single fval output
+% nonlcon_function is normal nonlcon_function which include con, coneq
+% con is colume vector, coneq is colume vector
+% var_function is same
+%
+basis_function=@(r) r.^3;
+
+[predict_function_fval,radialbasis_model_fval]=interpRadialBasisPreModel...
+    (x_list,fval_list,basis_function);
+
+if ~isempty(con_list)
+    predict_function_con=cell(size(con_list,2),1);
+    radialbasis_model_con=struct('X',[],'Y',[],...
+        'radialbasis_matrix',[],'beta',[],...
+        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],'basis_function',[],...
+        'predict_function',[]);
+    radialbasis_model_con=repmat(radialbasis_model_con,[size(con_list,2),1]);
+    for con_index=1:size(con_list,2)
+        [predict_function_con{con_index},radialbasis_model_con(con_index)]=interpRadialBasisPreModel...
+            (x_list,con_list(:,con_index));
+    end
+else
+    predict_function_con=[];
+    radialbasis_model_con=[];
+end
+
+if ~isempty(coneq_list)
+    predict_function_coneq=cell(size(coneq_list,2),1);
+    radialbasis_model_coneq=struct('X',[],'Y',[],...
+        'radialbasis_matrix',[],[],'beta',[],...
+        'aver_X',[],'stdD_X',[],'aver_Y',[],'stdD_Y',[],'basis_function',[],...
+        'predict_function',[]);
+    radialbasis_model_coneq=repmat(radialbasis_model_coneq,[size(coneq_list,2),1]);
+    for coneq_index=1:size(coneq_list,2)
+        [predict_function_coneq{coneq_index},radialbasis_model_con(con_index)]=interpRadialBasisPreModel...
+            (x_list,coneq_list(:,coneq_index));
+    end
+else
+    predict_function_coneq=[];
+    radialbasis_model_coneq=[];
+end
+
+object_function_surrogate=@(X_predict) objectFunctionSurrogate(X_predict,predict_function_fval);
+if isempty(radialbasis_model_con) && isempty(radialbasis_model_coneq)
+    nonlcon_function_surrogate=[];
+else
+    nonlcon_function_surrogate=@(X_predict) nonlconFunctionSurrogate(X_predict,predict_function_con,predict_function_coneq);
+end
+
+output.object_function_surrogate=object_function_surrogate;
+output.nonlcon_function_surrogate=nonlcon_function_surrogate;
+
+    function fval=objectFunctionSurrogate...
+            (X_predict,predict_function_fval)
+        % connect all predict favl
+        %
+        fval=predict_function_fval(X_predict);
+    end
+    function [con,coneq]=nonlconFunctionSurrogate...
+            (X_predict,predict_function_con,predict_function_coneq)
+        % connect all predict con and coneq
+        %
+        if isempty(predict_function_con)
+            con=[];
+        else
+            con=zeros(size(X_predict,1),length(predict_function_con));
+            for con_index__=1:length(predict_function_con)
+                con(:,con_index__)=....
+                    predict_function_con{con_index__}(X_predict);
+            end
+        end
+        if isempty(predict_function_coneq)
+            coneq=[];
+        else
+            coneq=zeros(size(X_predict,1),length(predict_function_coneq));
+            for coneq_index__=1:length(predict_function_coneq)
+                coneq(:,coneq_index__)=...
+                    predict_function_coneq{coneq_index__}(X_predict);
+            end
+        end
+    end
+end
+
+function [predict_function,radialbasis_model]=interpRadialBasisPreModel...
+    (X,Y,basis_function)
+% radial basis function interp pre model function
+% input initial data X, Y, which are real data
+% X, Y are x_number x variable_number matrix
+% aver_X,stdD_X is 1 x x_number matrix
+% output is a radial basis model, include X, Y, base_function
+% and predict_function
+%
+% Copyright 2023 Adel
+%
+if nargin < 3
+    basis_function=[];
+end
+
+[x_number,variable_number]=size(X);
+
+% normalize data
+aver_X=mean(X);
+stdD_X=std(X);
+aver_Y=mean(Y);
+stdD_Y=std(Y);
+index__=find(stdD_X == 0);
+if ~isempty(index__),stdD_X(index__)=1;end
+index__=find(stdD_Y == 0);
+if ~isempty(index__),stdD_Y(index__)=1;end
+X_nomlz=(X-aver_X)./stdD_X;
+Y_nomlz=(Y-aver_Y)./stdD_Y;
+
+if isempty(basis_function)
+    c=(prod(max(X_nomlz)-min(X_nomlz))/x_number)^(1/variable_number);
+    basis_function=@(r) exp(-(r.^2)/c);
+end
+
+% initialization distance of all X
+X_dis=zeros(x_number,x_number);
+for variable_index=1:variable_number
+    X_dis=X_dis+(X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
+end
+X_dis=sqrt(X_dis);
+
+[beta,rdibas_matrix]=interpRadialBasis...
+    (X_dis,Y_nomlz,basis_function,x_number);
+
+% initialization predict function
+predict_function=@(X_predict) interpRadialBasisPredictor...
+    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_number,variable_number,beta,basis_function);
+
+radialbasis_model.X=X;
+radialbasis_model.Y=Y;
+radialbasis_model.radialbasis_matrix=rdibas_matrix;
+radialbasis_model.beta=beta;
+
+radialbasis_model.aver_X=aver_X;
+radialbasis_model.stdD_X=stdD_X;
+radialbasis_model.aver_Y=aver_Y;
+radialbasis_model.stdD_Y=stdD_Y;
+radialbasis_model.basis_function=basis_function;
+
+radialbasis_model.predict_function=predict_function;
+
+% abbreviation:
+% num: number, pred: predict, vari: variable
+    function [beta,rdibas_matrix]=interpRadialBasis...
+            (X_dis,Y,basis_function,x_number)
+        % interp polynomial responed surface core function
+        % calculation beta
+        %
+        % Copyright 2022 Adel
+        %
+        rdibas_matrix=basis_function(X_dis);
+        
+        % stabilize matrix
+        rdibas_matrix=rdibas_matrix+eye(x_number)*1e-6;
+        
+        % solve beta
+        beta=rdibas_matrix\Y;
+    end
+
+    function [Y_pred]=interpRadialBasisPredictor...
+            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_num,vari_num,beta,basis_function)
+        % radial basis function interpolation predict function
+        %
+        [x_pred_num,~]=size(X_pred);
+
+        % normalize data
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        
+        % calculate distance
+        X_dis_pred=zeros(x_pred_num,x_num);
+        for vari_index=1:vari_num
+            X_dis_pred=X_dis_pred+...
+                (X_pred_nomlz(:,vari_index)-X_nomlz(:,vari_index)').^2;
+        end
+        X_dis_pred=sqrt(X_dis_pred);
+        
+        % predict variance
+        Y_pred=basis_function(X_dis_pred)*beta;
+        
+        % normalize data
+        Y_pred=Y_pred*stdD_Y+aver_Y;
+    end
+
 end
 
 %% data library
