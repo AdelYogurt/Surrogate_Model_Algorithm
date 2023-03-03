@@ -481,9 +481,9 @@ while ~done
 
         % step 2
         % contruct EI, PF function
-        object_function_EI=@(X) EIFunction(object_function_surrogate,X,fval_best/fval_max);
-        object_function_PF=@(X) PFFunction(object_function_surrogate_KS,X);
-        object_function_IF=@(X) IFFunction(x_best_pred,X,exp(kriging_model_fval.hyp),variable_number);
+        object_function_EI = @(X) EIFunction(object_function_surrogate, X, min(fval_nomlz_list));
+        object_function_PF = @(X) PFFunction(object_function_surrogate_KS,X);
+        object_function_IF = @(X) IFFunction(x_best_pred,X,exp(kriging_model_fval.hyp),variable_number);
 
         % step 3
         % multi objective optimization to get pareto front
