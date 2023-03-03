@@ -17,16 +17,16 @@ benchmark = BenchmarkFunction();
 % nonlcon_function = [];
 % cheapcon_function = [];
 
-variable_number = 2;
-object_function = @(x) benchmark.singlePKObject(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = [-3, -3];
-up_bou = [3, 3];
-nonlcon_function = [];
-cheapcon_function = [];
+% variable_number = 2;
+% object_function = @(x) benchmark.singlePKObject(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = [-3, -3];
+% up_bou = [3, 3];
+% nonlcon_function = [];
+% cheapcon_function = [];
 
 % variable_number = 4;
 % object_function = @(x) benchmark.singleROSObject(x);
@@ -66,18 +66,18 @@ cheapcon_function = [];
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1, variable_number)*-30;
-% up_bou = ones(1, variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = ones(1, variable_number)*-30;
+up_bou = ones(1, variable_number)*30;
+nonlcon_function = [];
+nonlcon_function_LF = [];
+cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -148,46 +148,46 @@ cheapcon_function = [];
 
 %% single run
 
-delete([data_library_name, '.txt']);
-delete('result_total.txt');
-
-[x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
-    (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-    cheapcon_function, [], 20)
-
-result_x_best = output.result_x_best;
-result_fval_best = output.result_fval_best;
-
-figure(1);
-plot(result_fval_best);
-
-figure(2);
-[x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
-    (data_library_name, low_bou, up_bou);
-scatter3(x_list(:, 1), x_list(:, 2), fval_list);
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+% delete([data_library_name, '.txt']);
+% delete('result_total.txt');
+% 
+% [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
+%     (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
+%     cheapcon_function, [], 20)
+% 
+% result_x_best = output.result_x_best;
+% result_fval_best = output.result_fval_best;
+% 
+% figure(1);
+% plot(result_fval_best);
+% 
+% figure(2);
+% [x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
+%     (data_library_name, low_bou, up_bou);
+% scatter3(x_list(:, 1), x_list(:, 2), fval_list);
+% xlabel('X');
+% ylabel('Y');
+% zlabel('Z');
 
 %% repeat run
 
-% repeat_number = 10;
-% result_fval = zeros(repeat_number, 1);
-% Max_NFE=40;
-% for repeat_index = 1:repeat_number
-%     delete([data_library_name, '.txt']);
-%     delete('result_total.txt');
-% 
-%     [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
-%         (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-%         cheapcon_function, [], Max_NFE);
-% 
-%     result_fval(repeat_index) = fval_best;
-% end
-% 
-% fprintf('Fval     : lowest = %4.4f, mean = %4.4f, worst = %4.4f, std = %4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
-% object_function_name=char(object_function);
-% save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_K_GPC','.mat']);
+repeat_number = 10;
+result_fval = zeros(repeat_number, 1);
+Max_NFE = 200;
+for repeat_index = 1:repeat_number
+    delete([data_library_name, '.txt']);
+    delete('result_total.txt');
+
+    [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
+        (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
+        cheapcon_function, [], Max_NFE);
+
+    result_fval(repeat_index) = fval_best;
+end
+
+fprintf('Fval     : lowest = %4.4f, mean = %4.4f, worst = %4.4f, std = %4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+object_function_name=char(object_function);
+save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_K_GPC','.mat']);
 
 %% main
 function [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
@@ -233,7 +233,7 @@ if nargin < 7
     end
 end
 
-DRAW_FIGURE_FLAG = 1; % whether draw data
+DRAW_FIGURE_FLAG = 0; % whether draw data
 INFORMATION_FLAG = 1; % whether print data
 CONVERGENCE_JUDGMENT_FLAG = 0; % whether judgment convergence
 
@@ -242,18 +242,14 @@ if isempty(iteration_max)
 end
 
 % hyper parameter
-sample_number_initial = 4*variable_number;
+sample_number_initial = 5*variable_number;
 if variable_number <= 5
     sample_number_iteration = 2;
 else
     sample_number_iteration = 3;
 end
 sample_number_data = 10*sample_number_initial;
-enlarge_range = 2; % adapt region enlarge parameter
-range_max = 0.5;
-range_min = 0.05;
-
-m = 2; % clustering parameter
+RBF_number = min(100, (variable_number+1)*(variable_number+2)/2);
 
 % max fval when normalize fval, con, coneq
 nomlz_fval = 10;
@@ -327,9 +323,6 @@ kriging_model_con = [];
 kriging_model_coneq = [];
 GPC_hyp.mean = 0;
 GPC_hyp.cov = zeros(1, variable_number+1);
-% bourdary updata
-low_bou_ISR = low_bou;
-up_bou_ISR = up_bou;
 while ~done
     % step 3
     % updata data library by x_list
@@ -364,31 +357,22 @@ while ~done
     end
 
     % step 4
-    % to avoid too large value influence to kriging model
-    % use quantile to delete useless point
-    [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
-%     model_index = [normal_index, small_index];
-%     x_list_model = x_list(model_index, :);
-%     fval_nomlz_list_model = fval_nomlz_list(model_index, :);
-%     if ~isempty(con_list)
-%         con_nomlz_list_model = con_nomlz_list(model_index, :);
-%     else
-%         con_nomlz_list_model = [];
-%     end
-%     if ~isempty(coneq_list)
-%         coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
-%     else
-%         coneq_nomlz_list_model = [];
-%     end
-    x_list_model = x_list;
-    fval_nomlz_list_model = fval_nomlz_list; fval_nomlz_list_model(large_index) = quantile(end);
+    % select nearest point to construct RBF
+    [~, index] = min(fval_nomlz_list);
+    x_initial = x_list(index, :);
+    RBF_model_number = min(RBF_number, size(x_list, 1));
+    distance = sum(((x_initial-x_list)./(up_bou-low_bou)).^2, 2);
+    [~, index_list] = sort(distance);
+    index_list = index_list(1:RBF_model_number);
+    x_list_model = x_list(index_list, :);
+    fval_nomlz_list_model = fval_nomlz_list(index_list, :);
     if ~isempty(con_list)
-        con_nomlz_list_model = con_nomlz_list(model_index, :);
+        con_nomlz_list_model = con_nomlz_list(index_list, :);
     else
         con_nomlz_list_model = [];
     end
     if ~isempty(coneq_list)
-        coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+        coneq_nomlz_list_model = coneq_nomlz_list(index_list, :);
     else
         coneq_nomlz_list_model = [];
     end
@@ -400,9 +384,7 @@ while ~done
     nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
     
     % search local
-%     [~,index]=min(fval_nomlz_list_model);
-    x_best=x_list_model(randi(size(x_list_model,1)),:);
-    [x_potential,fval_potential_predict]=fmincon(object_function_surrogate,x_best,[],[],[],[],low_bou,up_bou,nonlcon_function_surrogate,...
+    [x_potential,fval_potential_predict]=fmincon(object_function_surrogate,x_initial,[],[],[],[],low_bou,up_bou,nonlcon_function_surrogate,...
         optimoptions('fmincon','Display','none','Algorithm','sqp'));
 
     %     % step 5
@@ -539,46 +521,10 @@ while ~done
         end
 
         % get kriging model and function
-        [kriging_model_fval, kriging_model_con, kriging_model_coneq, output_kriging] = getKrigingModel...
-            (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model, ...
-            kriging_model_fval, kriging_model_con, kriging_model_coneq);
+        [kriging_model_fval, ~, ~, output_kriging] = getKrigingModel...
+            (x_list_model, fval_nomlz_list_model, [], [], ...
+            kriging_model_fval);
         object_function_surrogate = output_kriging.object_function_surrogate;
-        nonlcon_function_surrogate = output_kriging.nonlcon_function_surrogate;
-
-        % updata trust region
-        if iteration == 2
-            bou_range_nomlz = 0.5;
-        else
-            bou_range_nomlz_old = bou_range_nomlz;
-
-            r = (fval_potential_old-fval_potential)/(fval_potential_old-fval_potential_predict);
-            x_dis = norm((x_potential_old-x_potential)./(up_bou-low_bou), 2);
-            if x_dis <= range_min
-                x_dis = 0.1;
-            end
-
-            % scale only can be in (range_max-range_min)
-            scale = enlarge_range*x_dis;
-            % add rand influence avoid stable
-            if scale > (range_max-range_min)
-                scale = (range_max-range_min);
-            end
-
-            % mapping r into range_min - min(enlarge_range*x_dis, (range_max-range_min))
-            % bou_range_nomlz = scale/2 while r = 0
-            bou_range_nomlz = scale/(1+exp(-(r-0.5)))+range_min;
-
-            if abs(bou_range_nomlz-bou_range_nomlz_old) < torlance
-                bou_range_nomlz = bou_range_nomlz*rand();
-            end
-        end
-        bou_range = bou_range_nomlz.*(up_bou-low_bou);
-
-        % updata trust range
-        low_bou_ISR = x_best-bou_range;
-        low_bou_ISR = max(low_bou_ISR, low_bou);
-        up_bou_ISR = x_best+bou_range;
-        up_bou_ISR = min(up_bou_ISR, up_bou);
 
         % step 7
         % using SVM to identify area which is interesting
@@ -713,34 +659,33 @@ while ~done
                     (model_GPC, low_bou, up_bou);
             end
 
-%             % get data to obtain clustering center
-%             x_sup_list = x_data_list(predict_function_GPC(x_data_list)  ==  1, :);
-%             if isempty(x_sup_list)
-%                 % no sup point found use filter point
-%                 x_sup_list = x_list(boolean_list, :);
-%             end
-
             object_function_EI=  @(X) EIFunction(object_function_surrogate,X,fval_best/fval_max);
             object_function_IF = @(X) IFFunction(x_potential,X,exp(kriging_model_fval.hyp),variable_number);
             object_function_LCB = @(X) -LCBFunction(object_function_surrogate,X,10);
+            object_function_PGPC = @(X) PGPCFunction(predict_function_GPC, X);
 
-            x_data_list = lhsdesign(sample_number_data, variable_number)...
-                .*(up_bou_ISR - low_bou_ISR) + low_bou_ISR;
+            x_data_list = lhsdesign(sample_number_initial*10, variable_number)...
+                .*(up_bou - low_bou) + low_bou;
 
-            % calculate EI, IF, GPC value
-            EI_list = object_function_LCB(x_data_list);EI_list = EI_list./max(abs(EI_list));
-            IF_list = object_function_IF(x_data_list);
-            [~, GPC_list] = predict_function_GPC(x_data_list);
-            
-            EIFGPC_list = EI_list.*IF_list.*GPC_list;
-            [~, index_list] = sort(EIFGPC_list, 'descend');
+            % new function
+            object_function_PGPCEIF = @(X) -object_function_EI(X).*object_function_PGPC(X);
 
-            x_updata_list = x_data_list(index_list(1:sample_number_iteration), :);
+            % mulit start search
+            fval_PGPCEIF = 1;
+            for x_index = 1:size(x_list,1)
+                [x_potential_iter, fval_PGPCEIF_iter] = fmincon(object_function_PGPCEIF,x_list(x_index,:), [], [], [], [], low_bou, up_bou,...
+                    cheapcon_function, optimoptions('fmincon', 'Algorithm', 'sqp', 'Display', 'none'));
+                if fval_PGPCEIF_iter < fval_PGPCEIF
+                    x_potential = x_potential_iter;
+                    fval_PGPCEIF = fval_PGPCEIF_iter;
+                end
+            end
+
+            x_updata_list = x_potential;
 
             if DRAW_FIGURE_FLAG && variable_number < 3
-                bou_line = [low_bou_ISR;[low_bou_ISR(1), up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1), low_bou_ISR(2)];low_bou_ISR];
-                line(bou_line(:, 1), bou_line(:, 2));
-                line(x_data_list(:, 1), x_data_list(:, 2), 'Marker', 'o', 'Color', 'k', 'Linestyle', 'none');
+                interpVisualize(kriging_model_fval, low_bou, up_bou);
+                line(x_potential(1), x_potential(2), object_function_surrogate(x_potential), 'Marker', 'o', 'color', 'r', 'LineStyle', 'none')
             end
         end
 
@@ -857,13 +802,13 @@ output.result_fval_best = result_fval_best;
         fval=EI_l+EI_g;
     end
 
-    function fval=PFFunction(object_function_surrogate,X)
+    function fval = PFFunction(object_function_surrogate, X)
         % PF function
         [Con_pred,Con_var]=object_function_surrogate(X);
         fval=normcdf(-Con_pred./sqrt(Con_var));
     end
 
-    function fval=IFFunction(x_best,X,theta,variable_number)
+    function fval = IFFunction(x_best, X, theta, variable_number)
         fval=zeros(size(X,1),1);
         for variable_index=1:variable_number
             fval=fval+(X(:,variable_index)-x_best(:,variable_index)').^2*theta(variable_index);
@@ -871,9 +816,13 @@ output.result_fval_best = result_fval_best;
         fval=1-exp(-fval);
     end
 
-    function fval=LCBFunction(object_function_surrogate,X,w)
+    function fval = LCBFunction(object_function_surrogate, X, w)
         [fval_pred,fval_var]=object_function_surrogate(X);
         fval=fval_pred-w*fval_var;
+    end
+
+    function fval = PGPCFunction(predict_function_GPC, X)
+        [~, fval] = predict_function_GPC(X);
     end
 end
 

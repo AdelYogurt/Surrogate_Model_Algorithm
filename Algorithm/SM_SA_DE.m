@@ -208,7 +208,7 @@ CONVERGENCE_JUDGMENT_FLAG = 0; % whether judgment convergence
 
 % hyper parameter
 population_number = min(100, 10*variable_number);
-RBF_number = max(100, (variable_number+1)*(variable_number+2)/2);
+RBF_number = min(100, (variable_number+1)*(variable_number+2)/2);
 scaling_factor = 0.8; % F
 cross_rate = 0.8;
 
