@@ -17,16 +17,16 @@ benchmark = BenchmarkFunction();
 % nonlcon_function = [];
 % cheapcon_function = [];
 
-% variable_number = 2;
-% object_function = @(x) benchmark.singlePKObject(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = [-3, -3];
-% up_bou = [3, 3];
-% nonlcon_function = [];
-% cheapcon_function = [];
+variable_number = 2;
+object_function = @(x) benchmark.singlePKObject(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = [-3, -3];
+up_bou = [3, 3];
+nonlcon_function = [];
+cheapcon_function = [];
 
 % variable_number = 4;
 % object_function = @(x) benchmark.singleROSObject(x);
@@ -66,18 +66,18 @@ benchmark = BenchmarkFunction();
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-variable_number = 20;
-object_function = @(x) benchmark.singleEP20Object(x);
-object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = ones(1, variable_number)*-30;
-up_bou = ones(1, variable_number)*30;
-nonlcon_function = [];
-nonlcon_function_LF = [];
-cheapcon_function = [];
+% variable_number = 20;
+% object_function = @(x) benchmark.singleEP20Object(x);
+% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = ones(1, variable_number)*-30;
+% up_bou = ones(1, variable_number)*30;
+% nonlcon_function = [];
+% nonlcon_function_LF = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -153,7 +153,7 @@ delete('result_total.txt');
 
 [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
     (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-    cheapcon_function, [], 40)
+    cheapcon_function, [], 20)
 
 result_x_best = output.result_x_best;
 result_fval_best = output.result_fval_best;
@@ -173,7 +173,7 @@ zlabel('Z');
 
 % repeat_number = 10;
 % result_fval = zeros(repeat_number, 1);
-% Max_NFE=200;
+% Max_NFE=40;
 % for repeat_index = 1:repeat_number
 %     delete([data_library_name, '.txt']);
 %     delete('result_total.txt');
@@ -242,17 +242,16 @@ if isempty(iteration_max)
 end
 
 % hyper parameter
-if variable_number < 10
-    sample_number_initial = min((variable_number+1)*(variable_number+2)/2, 4*variable_number);
-else
-    sample_number_initial = variable_number*4;
-end
+sample_number_initial = 4*variable_number;
 if variable_number <= 5
     sample_number_iteration = 2;
 else
     sample_number_iteration = 3;
 end
 sample_number_data = 10*sample_number_initial;
+enlarge_range = 2; % adapt region enlarge parameter
+range_max = 0.5;
+range_min = 0.05;
 
 m = 2; % clustering parameter
 
@@ -286,7 +285,7 @@ iteration = iteration+1;
 % use latin hypercube method to get initial sample x_list
 % [~, x_updata_list, ~] = getLatinHypercube...
 %     (sample_number_initial, variable_number, [], low_bou, up_bou, cheapcon_function);
-x_updata_list = lhsdesign(sample_number_initial, variable_number).*(up_bou-low_bou)+low_bou;
+x_updata_list = lhsdesign(sample_number_initial, variable_number, 'iterations', 50, 'criterion', 'maximin').*(up_bou-low_bou)+low_bou;
 
 % detech expensive constraints
 if ~isempty(x_updata_list)
@@ -328,6 +327,9 @@ kriging_model_con = [];
 kriging_model_coneq = [];
 GPC_hyp.mean = 0;
 GPC_hyp.cov = zeros(1, variable_number+1);
+% bourdary updata
+low_bou_ISR = low_bou;
+up_bou_ISR = up_bou;
 while ~done
     % step 3
     % updata data library by x_list
@@ -345,6 +347,7 @@ while ~done
     % nomalization all data
     fval_max = max(abs(fval_list), [], 1);
     fval_nomlz_list = fval_list./fval_max*nomlz_fval;
+%     fval_nomlz_list = fval_list;
     if ~isempty(con_list)
         con_max_list = max(abs(con_list), [], 1);
         con_nomlz_list = con_list./con_max_list*nomlz_fval;
@@ -363,39 +366,58 @@ while ~done
     % step 4
     % to avoid too large value influence to kriging model
     % use quantile to delete useless point
-    [quantile, normal_index] = findUnusual(fval_nomlz_list);
-    x_list_model = x_list(normal_index, :);
-    fval_nomlz_list_model = fval_nomlz_list(normal_index, :);
+    [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
+%     model_index = [normal_index, small_index];
+%     x_list_model = x_list(model_index, :);
+%     fval_nomlz_list_model = fval_nomlz_list(model_index, :);
+%     if ~isempty(con_list)
+%         con_nomlz_list_model = con_nomlz_list(model_index, :);
+%     else
+%         con_nomlz_list_model = [];
+%     end
+%     if ~isempty(coneq_list)
+%         coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+%     else
+%         coneq_nomlz_list_model = [];
+%     end
+    x_list_model = x_list;
+    fval_nomlz_list_model = fval_nomlz_list; fval_nomlz_list_model(large_index) = quantile(end);
     if ~isempty(con_list)
-        con_nomlz_list_model = con_nomlz_list(normal_index, :);
+        con_nomlz_list_model = con_nomlz_list(model_index, :);
     else
         con_nomlz_list_model = [];
     end
     if ~isempty(coneq_list)
-        coneq_nomlz_list_model = coneq_nomlz_list(normal_index, :);
+        coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
     else
         coneq_nomlz_list_model = [];
     end
+
+    % get RBF model and function
+    [RBF_model_fval, RBF_model_con, RBF_model_coneq, output_RBF] = getRadialBasisModel...
+        (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model);
+    object_function_surrogate = output_RBF.object_function_surrogate;
+    nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
     
-    [kriging_model_fval, kriging_model_con, kriging_model_coneq, output_kriging] = getKrigingModel...
-        (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model, ...
-        kriging_model_fval, kriging_model_con, kriging_model_coneq);
-    object_function_surrogate = output_kriging.object_function_surrogate;
-    nonlcon_function_surrogate = output_kriging.nonlcon_function_surrogate;
+    % search local
+%     [~,index]=min(fval_nomlz_list_model);
+    x_best=x_list_model(randi(size(x_list_model,1)),:);
+    [x_potential,fval_potential_predict]=fmincon(object_function_surrogate,x_best,[],[],[],[],low_bou,up_bou,nonlcon_function_surrogate,...
+        optimoptions('fmincon','Display','none','Algorithm','sqp'));
 
-    % step 5
-    % MSP guideline to obtain x_adapt
-    [x_potential, ~, exitflag, ~] = findMinMSP...
-        (object_function_surrogate, variable_number, low_bou, up_bou, nonlcon_function_surrogate, ...
-        cheapcon_function, nonlcon_torlance);
-
-    if exitflag  ==  -2
-        % optimal feasiblilty if do not exist feasible point
-        object_nonlcon_function_surrogate = @(x) objectNonlconFunctionSurrogate(x, nonlcon_function_surrogate);
-        [x_potential, ~, exitflag, ~] = findMinMSP...
-            (object_nonlcon_function_surrogate, variable_number, low_bou, up_bou, [], ...
-            cheapcon_function, nonlcon_torlance);
-    end
+    %     % step 5
+    %     % MSP guideline to obtain x_adapt
+    %     [x_potential, ~, exitflag, ~] = findMinMSP...
+    %         (object_function_surrogate, variable_number, low_bou, up_bou, nonlcon_function_surrogate, ...
+    %         cheapcon_function, nonlcon_torlance);
+    %
+    %     if exitflag  ==  -2
+    %         % optimal feasiblilty if do not exist feasible point
+    %         object_nonlcon_function_surrogate = @(x) objectNonlconFunctionSurrogate(x, nonlcon_function_surrogate);
+    %         [x_potential, ~, exitflag, ~] = findMinMSP...
+    %             (object_nonlcon_function_surrogate, variable_number, low_bou, up_bou, [], ...
+    %             cheapcon_function, nonlcon_torlance);
+    %     end
 
     % check x_potential if exist in data library
     % if not, updata data libraray
@@ -442,7 +464,7 @@ while ~done
     end
 
     if DRAW_FIGURE_FLAG && variable_number < 3
-        interpVisualize(kriging_model_fval, low_bou, up_bou);
+        interpVisualize(RBF_model_fval, low_bou, up_bou);
         line(x_potential(1), x_potential(2), fval_potential/fval_max*nomlz_fval, 'Marker', 'o', 'color', 'r', 'LineStyle', 'none')
     end
 
@@ -489,6 +511,74 @@ while ~done
 
     % Interest space sampling
     if ~done
+        [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
+        %     model_index = [normal_index, small_index];
+        %     x_list_model = x_list(model_index, :);
+        %     fval_nomlz_list_model = fval_nomlz_list(model_index, :);
+        %     if ~isempty(con_list)
+        %         con_nomlz_list_model = con_nomlz_list(model_index, :);
+        %     else
+        %         con_nomlz_list_model = [];
+        %     end
+        %     if ~isempty(coneq_list)
+        %         coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+        %     else
+        %         coneq_nomlz_list_model = [];
+        %     end
+        x_list_model = x_list;
+        fval_nomlz_list_model = fval_nomlz_list; fval_nomlz_list_model(large_index) = quantile(end);
+        if ~isempty(con_list)
+            con_nomlz_list_model = con_nomlz_list(model_index, :);
+        else
+            con_nomlz_list_model = [];
+        end
+        if ~isempty(coneq_list)
+            coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+        else
+            coneq_nomlz_list_model = [];
+        end
+
+        % get kriging model and function
+        [kriging_model_fval, kriging_model_con, kriging_model_coneq, output_kriging] = getKrigingModel...
+            (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model, ...
+            kriging_model_fval, kriging_model_con, kriging_model_coneq);
+        object_function_surrogate = output_kriging.object_function_surrogate;
+        nonlcon_function_surrogate = output_kriging.nonlcon_function_surrogate;
+
+        % updata trust region
+        if iteration == 2
+            bou_range_nomlz = 0.5;
+        else
+            bou_range_nomlz_old = bou_range_nomlz;
+
+            r = (fval_potential_old-fval_potential)/(fval_potential_old-fval_potential_predict);
+            x_dis = norm((x_potential_old-x_potential)./(up_bou-low_bou), 2);
+            if x_dis <= range_min
+                x_dis = 0.1;
+            end
+
+            % scale only can be in (range_max-range_min)
+            scale = enlarge_range*x_dis;
+            % add rand influence avoid stable
+            if scale > (range_max-range_min)
+                scale = (range_max-range_min);
+            end
+
+            % mapping r into range_min - min(enlarge_range*x_dis, (range_max-range_min))
+            % bou_range_nomlz = scale/2 while r = 0
+            bou_range_nomlz = scale/(1+exp(-(r-0.5)))+range_min;
+
+            if abs(bou_range_nomlz-bou_range_nomlz_old) < torlance
+                bou_range_nomlz = bou_range_nomlz*rand();
+            end
+        end
+        bou_range = bou_range_nomlz.*(up_bou-low_bou);
+
+        % updata trust range
+        low_bou_ISR = x_best-bou_range;
+        low_bou_ISR = max(low_bou_ISR, low_bou);
+        up_bou_ISR = x_best+bou_range;
+        up_bou_ISR = min(up_bou_ISR, up_bou);
 
         % step 7
         % using SVM to identify area which is interesting
@@ -599,12 +689,13 @@ while ~done
         
             object_function_PF=@(X) PFFunction(object_function_surrogate_KS,X);
         else
+            
             % interset sampling
             %             [fval_sort, index_list] = sort(fval_list);
             %             x_list_sort = x_list(index_list, :);
             %             index = floor(size(fval_list, 1)/2);
             %             fval_thresh = fval_sort(index);
-            fval_thresh=prctile(fval_list,25);
+            fval_thresh = prctile(fval_list, 50);
 
             % step 7-1
             % classify exist data
@@ -621,54 +712,73 @@ while ~done
                 classifyVisualization...
                     (model_GPC, low_bou, up_bou);
             end
-            % get data to obtain clustering center
-            x_sup_list = x_data_list(predict_function_GPC(x_data_list)  ==  1, :);
 
-            if isempty(x_sup_list)
-                % no sup point found use filter point
-                x_sup_list = x_list(boolean_list, :);
+%             % get data to obtain clustering center
+%             x_sup_list = x_data_list(predict_function_GPC(x_data_list)  ==  1, :);
+%             if isempty(x_sup_list)
+%                 % no sup point found use filter point
+%                 x_sup_list = x_list(boolean_list, :);
+%             end
+
+            object_function_EI=  @(X) EIFunction(object_function_surrogate,X,fval_best/fval_max);
+            object_function_IF = @(X) IFFunction(x_potential,X,exp(kriging_model_fval.hyp),variable_number);
+            object_function_LCB = @(X) -LCBFunction(object_function_surrogate,X,10);
+
+            x_data_list = lhsdesign(sample_number_data, variable_number)...
+                .*(up_bou_ISR - low_bou_ISR) + low_bou_ISR;
+
+            % calculate EI, IF, GPC value
+            EI_list = object_function_LCB(x_data_list);EI_list = EI_list./max(abs(EI_list));
+            IF_list = object_function_IF(x_data_list);
+            [~, GPC_list] = predict_function_GPC(x_data_list);
+            
+            EIFGPC_list = EI_list.*IF_list.*GPC_list;
+            [~, index_list] = sort(EIFGPC_list, 'descend');
+
+            x_updata_list = x_data_list(index_list(1:sample_number_iteration), :);
+
+            if DRAW_FIGURE_FLAG && variable_number < 3
+                bou_line = [low_bou_ISR;[low_bou_ISR(1), up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1), low_bou_ISR(2)];low_bou_ISR];
+                line(bou_line(:, 1), bou_line(:, 2));
+                line(x_data_list(:, 1), x_data_list(:, 2), 'Marker', 'o', 'Color', 'k', 'Linestyle', 'none');
             end
-
-            object_function_EI=@(X) EIFunction(object_function_surrogate,X,fval_best/fval_max);
-            object_function_IF=@(X) IFFunction(x_best_pred,X,exp(kriging_model_fval.hyp),variable_number);
-            object_function_LCB=@(X) LCBFunction(object_function_surrogate,X);
         end
 
-        % step 7-3
-        % calculate clustering center
-        if ~isempty(x_sup_list)
-            FC_model = classifyFuzzyClustering...
-                (x_sup_list, 1, m);
-            x_center = FC_model.center_list;
-        end
+%         % step 7-3
+%         % calculate clustering center
+%         if ~isempty(x_sup_list)
+%             FC_model = classifyFuzzyClustering...
+%                 (x_sup_list, 1, m);
+%             x_center = FC_model.center_list;
+%         end
 
-        % updata ISR
-        x_potential_nomlz = (x_potential-low_bou)./(up_bou-low_bou);
-        x_center_nomlz = (x_center-low_bou)./(up_bou-low_bou);
-        bou_range_nomlz = eta*norm(x_potential_nomlz-x_center_nomlz, 2);
-        if bou_range_nomlz < 1e-2
-            bou_range_nomlz = 1e-2;
-        end
-        bou_range = bou_range_nomlz.*(up_bou-low_bou);
-        low_bou_ISR = x_potential-bou_range;
-        low_bou_ISR = max(low_bou_ISR, low_bou);
-        up_bou_ISR = x_potential+bou_range;
-        up_bou_ISR = min(up_bou_ISR, up_bou);
+%         % updata ISR
+%         x_potential_nomlz = (x_potential-low_bou)./(up_bou-low_bou);
+%         x_center_nomlz = (x_center-low_bou)./(up_bou-low_bou);
+%         bou_range_nomlz = eta*norm(x_potential_nomlz-x_center_nomlz, 2);
+%         if bou_range_nomlz < 1e-2
+%             bou_range_nomlz = 1e-2;
+%         end
+%         bou_range = bou_range_nomlz.*(up_bou-low_bou);
+%         low_bou_ISR = x_potential-bou_range;
+%         low_bou_ISR = max(low_bou_ISR, low_bou);
+%         up_bou_ISR = x_potential+bou_range;
+%         up_bou_ISR = min(up_bou_ISR, up_bou);
 
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            bou_line = [low_bou_ISR;[low_bou_ISR(1), up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1), low_bou_ISR(2)];low_bou_ISR];
-            line(bou_line(:, 1), bou_line(:, 2));
-            line(x_potential(1), x_potential(2), 'Marker', 'x')
-        end
+%         if DRAW_FIGURE_FLAG && variable_number < 3
+%             bou_line = [low_bou_ISR;[low_bou_ISR(1), up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1), low_bou_ISR(2)];low_bou_ISR];
+%             line(bou_line(:, 1), bou_line(:, 2));
+%             line(x_potential(1), x_potential(2), 'Marker', 'x')
+%         end
 
-        % sampling in ISR
-        [x_list_exist, ~, ~, ~] = dataLibraryLoad...
-            (data_library_name, low_bou_ISR, up_bou_ISR);
-        %     [~, x_updata_list, ~] = getLatinHypercube...
-        %         (sample_number_iteration+size(x_list_exist, 1), variable_number, x_list_exist, ...
-        %         low_bou_ISR, up_bou_ISR, cheapcon_function);
-        x_updata_list = lhsdesign(sample_number_iteration, variable_number)...
-            .*(up_bou_ISR-low_bou_ISR)+low_bou_ISR;
+%         % sampling in ISR
+%         [x_list_exist, ~, ~, ~] = dataLibraryLoad...
+%             (data_library_name, low_bou_ISR, up_bou_ISR);
+%         %     [~, x_updata_list, ~] = getLatinHypercube...
+%         %         (sample_number_iteration+size(x_list_exist, 1), variable_number, x_list_exist, ...
+%         %         low_bou_ISR, up_bou_ISR, cheapcon_function);
+%         x_updata_list = lhsdesign(sample_number_iteration, variable_number)...
+%             .*(up_bou_ISR-low_bou_ISR)+low_bou_ISR;
 
     end
 
@@ -761,9 +871,9 @@ output.result_fval_best = result_fval_best;
         fval=1-exp(-fval);
     end
 
-    function fval=LCBFunction(object_function_surrogate,X)
+    function fval=LCBFunction(object_function_surrogate,X,w)
         [fval_pred,fval_var]=object_function_surrogate(X);
-        fval=fval_pred-fval_var;
+        fval=fval_pred-w*fval_var;
     end
 end
 
@@ -1005,7 +1115,7 @@ else
 end
 end
 
-function [quantile, normal_index] = findUnusual(data)
+function [quantile, normal_index, small_index, large_index] = findUnusual(data)
 % base on Box diagram to search unusual value
 %
 x_number = length(data);
@@ -1016,7 +1126,9 @@ Q3 = getQuantile(data, 0.75);
 IQR = Q3-Q1;
 
 normal_index = 1:x_number;
-normal_index((data < (Q1-1.5*IQR) | data > (Q3+1.5*IQR))) = [];
+small_index = normal_index(data < (Q1-1.5*IQR));
+large_index = normal_index(data > (Q3+1.5*IQR));
+normal_index([large_index, small_index]) = [];
 
 quantile = [min(data(normal_index));
     getQuantile(data(normal_index), 0.25);
@@ -1026,9 +1138,11 @@ quantile = [min(data(normal_index));
 
 [~, index_list] = sort(index_list);
 normal_index = index_list(normal_index);
+small_index = index_list(small_index);
+large_index = index_list(large_index);
 
     function quantile = getQuantile(data, percent)
-        index = x_number*percent;
+        index = length(data)*percent;
         if (index  ==  fix(index))
             % index is integer
             quantile = 0.5*(data(index)+data(index+1));
@@ -1914,7 +2028,8 @@ function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,o
 % con is colume vector, coneq is colume vector
 % var_function is same
 %
-basis_function=@(r) r.^3;
+% basis_function=@(r) r.^3;
+basis_function=[];
 
 [predict_function_fval,radialbasis_model_fval]=interpRadialBasisPreModel...
     (x_list,fval_list,basis_function);

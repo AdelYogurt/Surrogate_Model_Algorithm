@@ -1,7 +1,8 @@
-
 clc;
 clear;
 close all hidden;
+
+data_library_name='optimal_data_library';
 
 benchmark=BenchmarkFunction();
 
@@ -90,66 +91,87 @@ benchmark=BenchmarkFunction();
 % nonlcon_function=@(x) benchmark.singleWeiNonlcon(x);
 % cheapcon_function=[];
 
-variable_number=4;
-object_function=@(x) benchmark.singlePVD4Object(x);
-object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
-A=[-1,0,0.0193,0;
-    0,-1,0.00954,0;];
-B=[0;0];
-Aeq=[];
-Beq=[];
-low_bou=[0,0,0,0];
-up_bou=[1,1,50,240];
-nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
-cheapcon_function=[];
-model_function=[];
-
-% variable_number=13;
-% object_function=@benchmark.singleG01Object;
-% object_function_low=@benchmark.singleG01ObjectLow;
-% A=[ 2   2   0   0   0   0   0   0   0   1   1   0   0;
-%     2   0   2   0   0   0   0   0   0   1   0   1   0;
-%     0   2   2   0   0   0   0   0   0   0   1   1   0;
-%     -8  0   0   0   0   0   0   0   0   1   0   0   0;
-%     0   -8  0   0   0   0   0   0   0   0   1   0   0;
-%     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
-%     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
-%     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
-%     ];
-% B=[10;10;10;0;0;0;0;0];
+% variable_number=4;
+% object_function=@(x) benchmark.singlePVD4Object(x);
+% object_function_low=@(x) benchmark.singlePVD4ObjecttLow(x);
+% A=[-1,0,0.0193,0;
+%     0,-1,0.00954,0;];
+% B=[0;0];
 % Aeq=[];
 % Beq=[];
-% low_bou=zeros(1,13);
-% up_bou=ones(1,13);
-% up_bou(10:12)=100;
-% nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
-% nonlcon_function_LF=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+% low_bou=[0,0,0,0];
+% up_bou=[1,1,50,240];
+% nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
 % cheapcon_function=[];
+% model_function=[];
+
+variable_number=13;
+object_function=@(x) benchmark.singleG01Object(x);
+object_function_low=@(x) benchmark.singleG01ObjectLow(x);
+A=[ 2   2   0   0   0   0   0   0   0   1   1   0   0;
+    2   0   2   0   0   0   0   0   0   1   0   1   0;
+    0   2   2   0   0   0   0   0   0   0   1   1   0;
+    -8  0   0   0   0   0   0   0   0   1   0   0   0;
+    0   -8  0   0   0   0   0   0   0   0   1   0   0;
+    0   0   0   -2  -1  0   0   0   0   1   0   0   0;
+    0   0   0   0   0   -2  -1  0   0   0   1   0   0;
+    0   0   0   0   0   0   0   -2  -1  0   0   1   0;
+    ];
+B=[10;10;10;0;0;0;0;0];
+Aeq=[];
+Beq=[];
+low_bou=zeros(1,13);
+up_bou=ones(1,13);
+up_bou(10:12)=100;
+nonlcon_function=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+nonlcon_function_LF=@(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+cheapcon_function=[];
 
 % x_initial=rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % fmincon_option=optimoptions('fmincon','Algorithm','sqp');
 % [x_best,fval_best,~,output,lambda,grad,hessian]=fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,fmincon_option)
 
-data_library_name='optimal_data_library.txt';
-delete(data_library_name);
-delete('result_total.txt');
-[x_best,fval_best,NFE,output]=optimalSurrogatePAKMCA...
-    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],50)
+%% single run
 
-result_x_best=output.result_x_best;
-result_fval_best=output.result_fval_best;
+% delete(data_library_name);
+% delete('result_total.txt');
+% [x_best,fval_best,NFE,output]=optimalSurrogatePAKMCA...
+%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+%     cheapcon_function,[],50)
+% 
+% result_x_best=output.result_x_best;
+% result_fval_best=output.result_fval_best;
+% 
+% figure(1);
+% plot(result_fval_best);
+% 
+% figure(2);
+% [x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
+%     (data_library_name,low_bou,up_bou);
+% scatter3(x_list(:,1),x_list(:,2),fval_list);
+% xlabel('X');
+% ylabel('Y');
+% zlabel('Z');
 
-figure(1);
-plot(result_fval_best);
+%% repeat run
 
-figure(2);
-[x_list,fval_list,con_list,coneq_list]=dataLibraryLoad...
-    (data_library_name,low_bou,up_bou);
-scatter3(x_list(:,1),x_list(:,2),fval_list);
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+repeat_number=10;
+result_fval=zeros(repeat_number,1);
+Max_NFE=200;
+for repeat_index=1:repeat_number
+    delete([data_library_name,'.txt']);
+    delete('result_total.txt');
+
+    [x_best,fval_best,NFE,output]=optimalSurrogatePAKMCA...
+        (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+        cheapcon_function,[],Max_NFE);
+
+    result_fval(repeat_index)=fval_best;
+end
+
+fprintf('Fval     : lowest=%4.4f, mean=%4.4f, worst=%4.4f, std=%4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
+object_function_name=char(object_function);
+save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_PAKM_CA','.mat']);
 
 %% main
 function [x_best,fval_best,NFE,output]=optimalSurrogatePAKMCA...

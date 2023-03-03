@@ -26,6 +26,10 @@ if isempty(axes_handle)
     axes_handle=axes(figure_handle);
 end
 axes_context=axes_handle.Children;
+if ~isempty(axes_context)
+    delete(axes_context);
+    axes_context=[];
+end
 
 x_list=model.X;
 y_list=model.Y;
@@ -36,10 +40,10 @@ end
 predict_function=model.predict_function;
 
 % get boundary
-if isempty(low_bou)
+if (nargin < 2 || isempty(low_bou))
     low_bou=min(x_list,[],1);
 end
-if isempty(up_bou)
+if (nargin < 3 || isempty(up_bou))
     up_bou=max(x_list,[],1);
 end
 
