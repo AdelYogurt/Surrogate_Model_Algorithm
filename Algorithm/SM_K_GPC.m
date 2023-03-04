@@ -17,16 +17,16 @@ benchmark = BenchmarkFunction();
 % nonlcon_function = [];
 % cheapcon_function = [];
 
-% variable_number = 2;
-% object_function = @(x) benchmark.singlePKObject(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = [-3, -3];
-% up_bou = [3, 3];
-% nonlcon_function = [];
-% cheapcon_function = [];
+variable_number = 2;
+object_function = @(x) benchmark.singlePKObject(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = [-3, -3];
+up_bou = [3, 3];
+nonlcon_function = [];
+cheapcon_function = [];
 
 % variable_number = 4;
 % object_function = @(x) benchmark.singleROSObject(x);
@@ -66,18 +66,18 @@ benchmark = BenchmarkFunction();
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-variable_number = 20;
-object_function = @(x) benchmark.singleEP20Object(x);
-object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = ones(1, variable_number)*-30;
-up_bou = ones(1, variable_number)*30;
-nonlcon_function = [];
-nonlcon_function_LF = [];
-cheapcon_function = [];
+% variable_number = 20;
+% object_function = @(x) benchmark.singleEP20Object(x);
+% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = ones(1, variable_number)*-30;
+% up_bou = ones(1, variable_number)*30;
+% nonlcon_function = [];
+% nonlcon_function_LF = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -140,7 +140,7 @@ cheapcon_function = [];
 % 
 % [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
 %     (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-%     cheapcon_function, [], 40)
+%     cheapcon_function, [], 200)
 % 
 % result_x_best = output.result_x_best;
 % result_fval_best = output.result_fval_best;
@@ -160,7 +160,7 @@ cheapcon_function = [];
 
 repeat_number = 10;
 result_fval = zeros(repeat_number, 1);
-Max_NFE = 200;
+Max_NFE = 40;
 for repeat_index = 1:repeat_number
     delete([data_library_name, '.txt']);
     delete('result_total.txt');
@@ -345,7 +345,8 @@ while ~done
 
     % step 4
     % select nearest point to construct RBF
-    [~, index] = min(fval_nomlz_list);
+    %     [~, index] = min(fval_nomlz_list);
+    index = randi(size(x_list,1));
     x_initial = x_list(index, :);
     RBF_model_number = min(RBF_number, size(x_list, 1));
 
@@ -365,15 +366,22 @@ while ~done
         coneq_nomlz_list_model = [];
     end
 
-    low_bou_RBF = min(x_list_model, [], 1);
-    up_bou_RBF = max(x_list_model, [], 1);
-
     % get RBF model and function
     [RBF_model_fval, RBF_model_con, RBF_model_coneq, output_RBF] = getRadialBasisModel...
         (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model);
     object_function_surrogate = output_RBF.object_function_surrogate;
     nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
-    
+
+    % if surrogate not convex
+    if object_function_surrogate(sum(x_list_model,1)/RBF_model_number)...
+            > sum(fval_nomlz_list_model)/RBF_model_number
+        low_bou_RBF = min(x_list_model, [], 1);
+        up_bou_RBF = max(x_list_model, [], 1);
+    else
+        low_bou_RBF=low_bou;
+        up_bou_RBF=up_bou;
+    end
+
     % search local
     [x_potential,fval_potential_predict]=fmincon(object_function_surrogate,x_initial,[],[],[],[],low_bou_RBF,up_bou_RBF,nonlcon_function_surrogate,...
         optimoptions('fmincon','Display','none','Algorithm','sqp'));
@@ -483,7 +491,8 @@ while ~done
     end
 
     % Interest space sampling
-    if ~done
+    x_updata_list = [];
+    if 0
         [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
         %     model_index = [normal_index, small_index];
         %     x_list_model = x_list(model_index, :);
@@ -653,14 +662,14 @@ while ~done
 
             EI_function = @(X) EIFunction(object_function_surrogate, X, min(fval_nomlz_list));
             IF_function = @(X) IFFunction(x_list, X, exp(kriging_model_fval.hyp), variable_number);
-            LCB_function = @(X) -LCBFunction(object_function_surrogate, X, 1);
+            LCB_function = @(X) -LCBFunction(object_function_surrogate, X, 10);
             PGPC_function = @(X) PGPCFunction(predict_function_GPC, X);
 
             x_data_list = lhsdesign(sample_number_initial*10, variable_number)...
                 .*(up_bou - low_bou) + low_bou;
 
             % new function
-            PGPCEIF_function = @(X) -EI_function(X).*PGPC_function(X);
+            PGPCEIF_function = @(X) LCB_function(X).*PGPC_function(X);
 
 %             % mulit start search
 %             fval_PGPCEIF = 1;
@@ -1217,13 +1226,13 @@ function [predict_function, CGP_model] = classifyGaussProcess...
 [x_number, variable_number] = size(X);
 if nargin < 5
     hyp.mean = 0;
-    hyp.cov = zeros(1, variable_number+1);
+    hyp.cov = zeros(1, 2);
 end
 
 % normalization data
 aver_X = mean(X);
 stdD_X = std(X);
-index__ = find(stdD_X  ==  0);
+index__ = find(stdD_X == 0);
 if  ~isempty(index__), stdD_X(index__) = 1; end
 X_nomlz = (X-aver_X)./stdD_X;
 
@@ -1233,13 +1242,11 @@ hyp_x = [hyp.mean, hyp.cov];
 % [fval, gradient] = object_function(hyp_x)
 % [fval_differ, gradient_differ] = differ(object_function, hyp_x)
 
-hyp_low_bou = -4*ones(1, variable_number+2);
-hyp_up_bou = 4*ones(1, variable_number+2);
-hyp_low_bou(1) = -1;
-hyp_up_bou(1) = 1;
+hyp_low_bou = -3*ones(1, 3);
+hyp_up_bou = 3*ones(1, 3);
 hyp_x = fmincon(object_function, hyp_x, [], [], [], [], hyp_low_bou, hyp_up_bou, [], ...
     optimoptions('fmincon', 'Display', 'none', 'SpecifyObjectiveGradient', true, ...
-    'MaxFunctionEvaluations', 20, 'OptimalityTolerance', 1e-6));
+    'MaxFunctionEvaluations', 20, 'OptimalityTolerance', 1e-3));
 
 hyp.mean = hyp_x(1);
 hyp.cov = hyp_x(2:end);
@@ -1283,7 +1290,7 @@ CGP_model.hyp = hyp;
         alpha = post.alpha; L = post.L; sW = post.sW;
         nz = true(size(alpha, 1), 1);               % non-sparse representation
         %verify whether L contains valid Cholesky decomposition or something different
-        Lchol = isnumeric(L) && all(all(tril(L, -1) == 0)&diag(L)'>0&isreal(diag(L))');
+        Lchol = isnumeric(L) && all(all(tril(L, -1)==0)&diag(L)'>0&isreal(diag(L))');
         ns = size(X_pred_nomlz, 1);                                       % number of data points
         nperbatch = 1000;                       % number of data points per mini batch
         nact = 0;                       % number of already processed test data points
@@ -1296,10 +1303,10 @@ CGP_model.hyp = hyp;
             N = size(alpha, 2);  % number of alphas (usually 1; more in case of sampling)
             Fmu = repmat(ms, 1, N) + Ks'*full(alpha(nz, :));        % conditional mean fs|f
             miu_pre(id) = sum(Fmu, 2)/N;                                   % predictive means
-            if Lchol    % L contains chol decomp  = > use Cholesky parameters (alpha, sW, L)
+            if Lchol    % L contains chol decomp => use Cholesky parameters (alpha, sW, L)
                 V  = L'\(repmat(sW, 1, length(id)).*Ks);
                 var_pre(id) = kss - sum(V.*V, 1)';                       % predictive variances
-            else                % L is not triangular  = > use alternative parametrisation
+            else                % L is not triangular => use alternative parametrisation
                 if isnumeric(L), LKs = L*Ks; else LKs = L(Ks); end    % matrix or callback
                 var_pre(id) = kss + sum(Ks.*LKs, 1)';                    % predictive variances
             end
@@ -1331,8 +1338,8 @@ CGP_model.hyp = hyp;
         %
         [x_num, vari_num] = size(X);
 
-        len = exp(cov(1:vari_num));
-        eta = exp(cov(vari_num+1));
+        len = exp(cov(1));
+        eta = exp(cov(2));
 
         % predict
         if nargin > 2 && nargout < 2 && ~isempty(Z)
@@ -1343,7 +1350,7 @@ CGP_model.hyp = hyp;
                 % initializate square of X inner distance/ vari_num
                 K = zeros(x_num, z_number);
                 for len_index = 1:vari_num
-                    K = K+(X(:, len_index)-Z(:, len_index)').^2*len(len_index)/vari_num;
+                    K = K+(X(:, len_index)-Z(:, len_index)').^2*len/vari_num;
                 end
                 K = eta*exp(-K);
             end
@@ -1357,20 +1364,24 @@ CGP_model.hyp = hyp;
             % exp of x__x with theta
             exp_dis = zeros(x_num);
             for len_index = 1:vari_num
-                exp_dis = exp_dis+sq_dis_v(:, :, len_index)*len(len_index);
+                exp_dis = exp_dis+sq_dis_v(:, :, len_index)*len;
             end
             exp_dis = exp(-exp_dis);
             K = exp_dis*eta;
 
             if nargout >= 2
-                dK_dcov = cell(1, vari_num+1);
+                dK_dcov = cell(1, 2);
+                dK_dlen = zeros(x_num, x_num);
                 for len_index = 1:vari_num
-                    dK_dcov{len_index} = -K.*sq_dis_v(:, :, len_index)*len(len_index);
+                    dK_dlen = dK_dlen + sq_dis_v(:, :, len_index);
                 end
+                dK_dlen = -dK_dlen.*K*len;
+                dK_dcov{1} = dK_dlen;
 
-                dK_dcov{vari_num+1} = K;
+                dK_dcov{2} = K;
             end
         end
+
     end
 
     function [post nlZ dnlZ] = infEP(hyp, mean, cov, lik, x, y)
@@ -1440,7 +1451,7 @@ CGP_model.hyp = hyp;
             [Sigma, mu, L, alpha, nlZ] = epComputeParams(K, y, ttau, tnu, lik, hyp, m, inf);
         end
 
-        if sweep  ==  max_sweep && abs(nlZ-nlZ_old) > tol
+        if sweep == max_sweep && abs(nlZ-nlZ_old) > tol
             error('maximum number of sweeps exceeded in function infEP')
         end
 
@@ -1505,12 +1516,12 @@ CGP_model.hyp = hyp;
         % See also MEANFUNCTIONS.M.
 
         if nargin<2, A = '1'; return; end             % report number of hyperparameters
-        if numel(hyp) ~= 1, error('Exactly one hyperparameter needed.'), end
+        if numel(hyp)~=1, error('Exactly one hyperparameter needed.'), end
         c = hyp;
-        if nargin == 2
+        if nargin==2
             A = c*ones(size(x, 1), 1);                                       % evaluate mean
         else
-            if i == 1
+            if i==1
                 A = ones(size(x, 1), 1);                                          % derivative
             else
                 A = zeros(size(x, 1), 1);
@@ -1532,12 +1543,12 @@ CGP_model.hyp = hyp;
         % See also LIKFUNCTIONS.M.
         %
         if nargin<3, varargout = {'0'}; return; end   % report number of hyperparameters
-        if nargin>1, y = sign(y); y(y == 0) = 1; else y = 1; end % allow only +/- 1 values
-        if numel(y) == 0, y = 1; end
+        if nargin>1, y = sign(y); y(y==0) = 1; else y = 1; end % allow only +/- 1 values
+        if numel(y)==0, y = 1; end
 
         if nargin<5                              % prediction mode if inf is not present
             y = y.*ones(size(mu));                                       % make y a vector
-            s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps, s2zero = 0; end  % s2 == 0 ?
+            s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps, s2zero = 0; end  % s2==0 ?
             if s2zero                                         % log probability evaluation
                 lp = logphi(y.*mu);
             else                                                              % prediction
@@ -1569,10 +1580,10 @@ CGP_model.hyp = hyp;
                     if nargin<6                                             % no derivative mode
                         z = mu./sqrt(1+s2); dlZ = {}; d2lZ = {};
                         if numel(y)>0, z = z.*y; end
-                        if nargout<= 1, lZ = logphi(z);                         % log part function
+                        if nargout <= 1, lZ = logphi(z);                         % log part function
                         else          [lZ, n_p] = logphi(z); end
-                        if nargout>1
-                            if numel(y) == 0, y = 1; end
+                        if nargout > 1
+                            if numel(y)==0, y = 1; end
                             dlZ = y.*n_p./sqrt(1+s2);                      % 1st derivative wrt mean
                             if nargout>2, d2lZ = -n_p.*(z+n_p)./(1+s2); end         % 2nd derivative
                         end
@@ -1772,7 +1783,7 @@ function [predict_function, kriging_model] = interpKrigingPreModel...
 %
 [x_number, variable_number] = size(X);
 if nargin < 3
-    hyp = zeros(1, variable_number);
+    hyp = 0;
 end
 
 % normalize data
@@ -1805,10 +1816,10 @@ fval_reg_nomlz = (reg_function(X)-aver_Y)./stdD_Y;
 % optimal to get hyperparameter
 fmincon_option = optimoptions('fmincon', 'Display', 'none', ...
     'OptimalityTolerance', 1e-2, ...
-    'FiniteDifferenceStepSize', 1e-5, ..., 
+    'FiniteDifferenceStepSize', 1e-5, ...,
     'MaxIterations', 10, 'SpecifyObjectiveGradient', false);
-low_bou_hyp = -3*ones(1, variable_number);
-up_bou_hyp = 3*ones(1, variable_number);
+low_bou_hyp = -3;
+up_bou_hyp = 3;
 object_function_hyp = @(hyp) objectNLLKriging...
     (X_dis_sq, Y_nomlz, x_number, variable_number, hyp, fval_reg_nomlz);
 
@@ -1867,32 +1878,34 @@ kriging_model.predict_function = predict_function;
         % calculate gradient
         if nargout > 1
             % gradient
-            gradient = zeros(vari_num, 1);
+            dcov_dtheta = zeros(x_num, x_num);
             for vari_index = 1:vari_num
-                dcov_dtheta = -(X_dis_sq(:, :, vari_index).*cov)*theta(vari_index)/vari_num;
-
-                dinv_cov_dtheta = ...
-                    -inv_cov*dcov_dtheta*inv_cov;
-
-                dinv_FTRF_dtheta = -inv_FTRF*...
-                    (F_reg'*dinv_cov_dtheta*F_reg)*...
-                    inv_FTRF;
-                
-                dmiu_dtheta = dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
-                    inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
-                
-                dY_Fmiu_dtheta = -F_reg*dmiu_dtheta;
-
-                dsigma2_dtheta = (dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
-                    Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
-                    Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
-                
-                dlnsigma2_dtheta = 1/sigma2*dsigma2_dtheta;
-
-                dlndetR = trace(inv_cov*dcov_dtheta);
-
-                gradient(vari_index) = x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
+                dcov_dtheta = dcov_dtheta + X_dis_sq(:, :, vari_index);
             end
+            dcov_dtheta = -dcov_dtheta.*cov*theta/vari_num;
+
+            dinv_cov_dtheta = ...
+                -inv_cov*dcov_dtheta*inv_cov;
+
+            dinv_FTRF_dtheta = -inv_FTRF*...
+                (F_reg'*dinv_cov_dtheta*F_reg)*...
+                inv_FTRF;
+
+            dmiu_dtheta = dinv_FTRF_dtheta*(F_reg'*inv_cov*Y)+...
+                inv_FTRF*(F_reg'*dinv_cov_dtheta*Y);
+
+            dY_Fmiu_dtheta = -F_reg*dmiu_dtheta;
+
+            dsigma2_dtheta = (dY_Fmiu_dtheta'*inv_cov*Y_Fmiu+...
+                Y_Fmiu'*dinv_cov_dtheta*Y_Fmiu+...
+                Y_Fmiu'*inv_cov*dY_Fmiu_dtheta)/x_num;
+
+            dlnsigma2_dtheta = 1/sigma2*dsigma2_dtheta;
+
+            dlndetR = trace(inv_cov*dcov_dtheta);
+
+            gradient = x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
+
         end
     end
 
@@ -1903,7 +1916,7 @@ kriging_model.predict_function = predict_function;
         %
         cov = zeros(x_num, x_num);
         for vari_index = 1:vari_num
-            cov = cov+X_dis_sq(:, :, vari_index)*theta(vari_index);
+            cov = cov+X_dis_sq(:, :, vari_index)*theta;
         end
         cov = exp(-cov/vari_num)+eye(x_num)*1e-3;
 
@@ -1915,7 +1928,7 @@ kriging_model.predict_function = predict_function;
         beta = inv_FTRF*(F_reg'*inv_cov*Y);
         Y_Fmiu = Y-F_reg*beta;
         sigma_sq = (Y_Fmiu'*inv_cov*Y_Fmiu)/x_num;
-        
+
     end
 
     function [Y_pred, Var_pred] = interpKrigingPredictor...
@@ -1933,25 +1946,25 @@ kriging_model.predict_function = predict_function;
         % normalize data
         X_pred_nomlz = (X_pred-aver_X)./stdD_X;
         fval_reg_pred_nomlz = (fval_reg_pred-aver_Y)./stdD_Y;
-        
+
         % predict covariance
         predict_cov = zeros(x_num, x_pred_num);
         for vari_index = 1:vari_num
             predict_cov = predict_cov+...
-                (X_nomlz(:, vari_index)-X_pred_nomlz(:, vari_index)').^2*theta(vari_index);
+                (X_nomlz(:, vari_index)-X_pred_nomlz(:, vari_index)').^2*theta;
         end
         predict_cov = exp(-predict_cov/vari_num);
 
         % predict base fval
-        
+
         Y_pred = fval_reg_pred_nomlz*beta+predict_cov'*gama;
-        
+
         % predict variance
         u__ = fval_reg_nomlz'*inv_cov*predict_cov-fval_reg_pred_nomlz';
         Var_pred = sigma_sq*...
             (1+u__'/FTRF*u__+...
             -predict_cov'*inv_cov*predict_cov);
-        
+
         % normalize data
         Y_pred = Y_pred*stdD_Y+aver_Y;
         Var_pred = diag(Var_pred)*stdD_Y*stdD_Y;
