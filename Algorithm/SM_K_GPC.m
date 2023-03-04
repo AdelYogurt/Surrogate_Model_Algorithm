@@ -6,16 +6,16 @@ data_library_name = 'optimal_data_library';
 
 benchmark = BenchmarkFunction();
 
-variable_number = 2;
-object_function = @(x) benchmark.singleGPObject(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = [-2, -2];
-up_bou = [2, 2];
-nonlcon_function = [];
-cheapcon_function = [];
+% variable_number = 2;
+% object_function = @(x) benchmark.singleGPObject(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = [-2, -2];
+% up_bou = [2, 2];
+% nonlcon_function = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singlePKObject(x);
@@ -66,18 +66,18 @@ cheapcon_function = [];
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1, variable_number)*-30;
-% up_bou = ones(1, variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = ones(1, variable_number)*-30;
+up_bou = ones(1, variable_number)*30;
+nonlcon_function = [];
+nonlcon_function_LF = [];
+cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -160,7 +160,7 @@ cheapcon_function = [];
 
 repeat_number = 10;
 result_fval = zeros(repeat_number, 1);
-Max_NFE = 40;
+Max_NFE = 200;
 for repeat_index = 1:repeat_number
     delete([data_library_name, '.txt']);
     delete('result_total.txt');
@@ -236,7 +236,7 @@ else
     sample_number_iteration = 3;
 end
 sample_number_data = 10*sample_number_initial;
-RBF_number = min(50, (variable_number + 1)*(variable_number + 2)/2);
+RBF_number = min(100, (variable_number + 1)*(variable_number + 2)/2);
 
 % max fval when normalize fval, con, coneq
 nomlz_fval = 10;
