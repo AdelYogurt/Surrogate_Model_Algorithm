@@ -17,16 +17,16 @@ benchmark = BenchmarkFunction();
 % nonlcon_function = [];
 % cheapcon_function = [];
 
-variable_number = 2;
-object_function = @(x) benchmark.singlePKObject(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = [-3, -3];
-up_bou = [3, 3];
-nonlcon_function = [];
-cheapcon_function = [];
+% variable_number = 2;
+% object_function = @(x) benchmark.singlePKObject(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = [-3, -3];
+% up_bou = [3, 3];
+% nonlcon_function = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.single2DObject(x);
@@ -117,21 +117,21 @@ cheapcon_function = [];
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1, variable_number)*-30;
-% up_bou = ones(1, variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = ones(1, variable_number)*-30;
+up_bou = ones(1, variable_number)*30;
+nonlcon_function = [];
+nonlcon_function_LF = [];
+cheapcon_function = [];
 
-x_initial = rand(1, variable_number).*(up_bou-low_bou)+low_bou;
-[x_best, fval_best, ~, output] = fmincon(object_function, x_initial, A, B, Aeq, Beq, low_bou, up_bou, [], optimoptions('fmincon', 'Algorithm', 'sqp', 'MaxFunctionEvaluations', 10000, 'Display', 'iter-detailed'))
+% x_initial = rand(1, variable_number).*(up_bou-low_bou)+low_bou;
+% [x_best, fval_best, ~, output] = fmincon(object_function, x_initial, A, B, Aeq, Beq, low_bou, up_bou, [], optimoptions('fmincon', 'Algorithm', 'sqp', 'MaxFunctionEvaluations', 10000, 'Display', 'iter-detailed'))
 
 %% single run
 
@@ -159,7 +159,7 @@ x_initial = rand(1, variable_number).*(up_bou-low_bou)+low_bou;
 
 repeat_number = 10;
 result_fval = zeros(repeat_number, 1);
-max_NFE = 40;
+max_NFE = 200;
 for repeat_index = 1:repeat_number
     delete([data_library_name, '.txt']);
     delete('result_total.txt');

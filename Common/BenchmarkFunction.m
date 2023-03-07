@@ -1,4 +1,5 @@
 classdef BenchmarkFunction < handle
+    
     methods % unconstraint single objective function
         function fval=single2DObject(self,x)
             % Rosenbrock problem
@@ -271,7 +272,26 @@ classdef BenchmarkFunction < handle
         function fval=singleST5ObjectLow(self,x)
             fval=0.5*sum(x.^4-16*x.^2+5*x);
         end
-
+        function fval=singleAckley30Object(self,x)
+                        % Rosenbrock problem
+            %
+            % variable_number=2;
+            % object_function=@(x) benchmark.single2DObject(x);
+            % object_function_LF=@(x) benchmark.single2DObjectLow(x);
+            % A=[];
+            % B=[];
+            % Aeq=[];
+            % Beq=[];
+            % low_bou=[-5,-5];
+            % up_bou=[5,5];
+            % nonlcon_function=[];
+            % nonlcon_function_LF=[];
+            % cheapcon_function=[];
+            %
+            % x_best=[-3.6483,-0.0685] fval_best=272.5563
+            %
+            fval=benchmark_func(x,8);
+        end
     end
     methods % constraint single objective function
         function [con,coneq]=singleICENonlcon(self,x)
@@ -555,8 +575,11 @@ classdef BenchmarkFunction < handle
         end
     end
     methods 
-        function getBenchmark(fun_type,fun_name)
-
+        function self = BenchmarkFunction()
+            % initialization Test_Function where some functions were sort in 
+            global initial_flag
+            addpath([pwd,'\Test_Function']);
+            initial_flag = 0;
         end
     end
 end

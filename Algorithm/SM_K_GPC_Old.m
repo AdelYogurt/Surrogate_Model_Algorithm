@@ -17,16 +17,16 @@ benchmark = BenchmarkFunction();
 % nonlcon_function = [];
 % cheapcon_function = [];
 
-% variable_number = 2;
-% object_function = @(x) benchmark.singlePKObject(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = [-3, -3];
-% up_bou = [3, 3];
-% nonlcon_function = [];
-% cheapcon_function = [];
+variable_number = 2;
+object_function = @(x) benchmark.singlePKObject(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = [-3, -3];
+up_bou = [3, 3];
+nonlcon_function = [];
+cheapcon_function = [];
 
 % variable_number = 4;
 % object_function = @(x) benchmark.singleROSObject(x);
@@ -66,18 +66,18 @@ benchmark = BenchmarkFunction();
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-variable_number = 20;
-object_function = @(x) benchmark.singleEP20Object(x);
-object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-A = [];
-B = [];
-Aeq = [];
-Beq = [];
-low_bou = ones(1, variable_number)*-30;
-up_bou = ones(1, variable_number)*30;
-nonlcon_function = [];
-nonlcon_function_LF = [];
-cheapcon_function = [];
+% variable_number = 20;
+% object_function = @(x) benchmark.singleEP20Object(x);
+% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = ones(1, variable_number)*-30;
+% up_bou = ones(1, variable_number)*30;
+% nonlcon_function = [];
+% nonlcon_function_LF = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -137,17 +137,17 @@ cheapcon_function = [];
 
 % delete([data_library_name, '.txt']);
 % delete('result_total.txt');
-%
+% 
 % [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
 %     (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
 %     cheapcon_function, [], 200)
-%
+% 
 % result_x_best = output.result_x_best;
 % result_fval_best = output.result_fval_best;
-%
+% 
 % figure(1);
 % plot(result_fval_best);
-%
+% 
 % figure(2);
 % [x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
 %     (data_library_name, low_bou, up_bou);
@@ -160,21 +160,21 @@ cheapcon_function = [];
 
 repeat_number = 10;
 result_fval = zeros(repeat_number, 1);
-max_NFE = 200;
+Max_NFE = 40;
 for repeat_index = 1:repeat_number
     delete([data_library_name, '.txt']);
     delete('result_total.txt');
 
     [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
         (object_function, variable_number, low_bou, up_bou, nonlcon_function, ...
-        cheapcon_function, [], max_NFE);
+        cheapcon_function, [], Max_NFE);
 
     result_fval(repeat_index) = fval_best;
 end
 
 fprintf('Fval     : lowest = %4.4f, mean = %4.4f, worst = %4.4f, std = %4.4f \n', min(result_fval), mean(result_fval), max(result_fval), std(result_fval));
 object_function_name=char(object_function);
-save([object_function_name(15:end-3),'_',num2str(max_NFE),'_K_GPC','.mat']);
+save([object_function_name(15:end-3),'_',num2str(Max_NFE),'_K_GPC','.mat']);
 
 %% main
 function [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
@@ -197,17 +197,14 @@ function [x_best, fval_best, NFE, output] = optimalSurrogateKGPC...
 %
 % Copyright Adel 2022.10
 %
-if nargin < 12
-    x_initial_list = [];
-    if nargin < 11 || isempty(nonlcon_torlance)
-        nonlcon_torlance = 1e-3;
-        if nargin < 10 || isempty(torlance)
-            torlance = 1e-3;
-            if nargin < 9
-                iteration_max = [];
-                if nargin < 8
-                    NFE_max = [];
-                end
+if nargin < 11 || isempty(nonlcon_torlance)
+    nonlcon_torlance = 1e-3;
+    if nargin < 10 || isempty(torlance)
+        torlance = 1e-3;
+        if nargin < 9
+            iteration_max = [];
+            if nargin < 8
+                NFE_max = [];
             end
         end
     end
@@ -227,15 +224,24 @@ DRAW_FIGURE_FLAG = 0; % whether draw data
 INFORMATION_FLAG = 1; % whether print data
 CONVERGENCE_JUDGMENT_FLAG = 0; % whether judgment convergence
 
+if isempty(iteration_max)
+    iteration_max = 100;
+end
+
 % hyper parameter
-population_number = min(100, 10*variable_number);
-RBF_number = min(100, (variable_number+1)*(variable_number+2)/2);
-scaling_factor = 0.8; % F
-cross_rate = 0.8;
+sample_number_initial = 5*variable_number;
+if variable_number <= 5
+    sample_number_iteration = 2;
+else
+    sample_number_iteration = 3;
+end
+sample_number_data = 10*sample_number_initial;
+RBF_number = min(100, (variable_number + 1)*(variable_number + 2)/2);
 
 % max fval when normalize fval, con, coneq
-nomlz_fval = 1;
+nomlz_fval = 10;
 
+filter_torlance = 1e-3;
 protect_range = 1e-4;
 
 data_library_name = 'optimal_data_library';
@@ -246,6 +252,11 @@ clear('file_result');
 
 done = 0;NFE = 0;iteration = 0;
 
+result_x_best = zeros(iteration_max, variable_number);
+result_fval_best = zeros(iteration_max, 1);
+x_data_list = lhsdesign(sample_number_data, variable_number, 'iterations', 50).*...
+    (up_bou-low_bou)+low_bou;
+
 % if do not input model_function, generate model_function
 if isempty(model_function)
     model_function = @(x) modelFunction(x, object_function, nonlcon_function);
@@ -254,15 +265,10 @@ end
 iteration = iteration+1;
 
 % step 2
-% generate initial sample x_list
-if isempty(x_initial_list)
-    %     [~, x_updata_list, ~] = getLatinHypercube...
-    %         (population_number, variable_number, [], low_bou, up_bou, cheapcon_function);
-    x_updata_list = lhsdesign(population_number, variable_number).*(up_bou-low_bou)+low_bou;
-else
-    delete([data_library_name, '.txt']);
-    x_updata_list = x_initial_list;
-end
+% use latin hypercube method to get initial sample x_list
+% [~, x_updata_list, ~] = getLatinHypercube...
+%     (sample_number_initial, variable_number, [], low_bou, up_bou, cheapcon_function);
+x_updata_list = lhsdesign(sample_number_initial, variable_number, 'iterations', 50, 'criterion', 'maximin').*(up_bou-low_bou)+low_bou;
 
 % detech expensive constraints
 if ~isempty(x_updata_list)
@@ -294,157 +300,156 @@ if isempty(iteration_max)
         iteration_max = 20*variable_number;
     end
 end
-result_x_best = zeros(iteration_max, variable_number);
-result_fval_best = zeros(iteration_max, 1);
 
 % import data from data library
 [x_list, fval_list, con_list, coneq_list] = dataLibraryLoad...
     (data_library_name, low_bou, up_bou);
-
-% updata data library by x_list
-[fval_updata_list, con_updata_list, coneq_updata_list] = dataLibraryUpdata...
-    (data_library_name, model_function, x_updata_list);NFE = NFE+size(x_updata_list, 1);
-x_list = [x_list;x_updata_list];
-fval_list = [fval_list;fval_updata_list];
-if ~isempty(con_list)
-    con_list = [con_list;con_updata_list];
-end
-if ~isempty(coneq_list)
-    coneq_list = [coneq_list;coneq_updata_list];
-end
 
 kriging_model_fval = [];
 kriging_model_con = [];
 kriging_model_coneq = [];
 GPC_hyp.mean = 0;
 GPC_hyp.cov = zeros(1, variable_number+1);
-search_flag = 0; % global search or local search, 0 is global and 1 is local
 while ~done
-    infor_search_flag = search_flag;
-    % nomalization con with average
+    % step 3
+    % updata data library by x_list
+    [fval_updata_list, con_updata_list, coneq_updata_list] = dataLibraryUpdata...
+        (data_library_name, model_function, x_updata_list);NFE = NFE+size(x_updata_list, 1);
+    x_list = [x_list;x_updata_list];
+    fval_list = [fval_list;fval_updata_list];
+    if ~isempty(con_updata_list)
+        con_list = [con_list;con_updata_list];
+    end
+    if ~isempty(coneq_updata_list)
+        coneq_list = [coneq_list;coneq_updata_list];
+    end
+
+    % nomalization all data
     fval_max = max(abs(fval_list), [], 1);
     fval_nomlz_list = fval_list./fval_max*nomlz_fval;
+%     fval_nomlz_list = fval_list;
     if ~isempty(con_list)
         con_max_list = max(abs(con_list), [], 1);
         con_nomlz_list = con_list./con_max_list*nomlz_fval;
     else
+        con_max_list = [];
         con_nomlz_list = [];
     end
     if ~isempty(coneq_list)
         coneq_max_list = max(abs(coneq_list), [], 1);
         coneq_nomlz_list = coneq_list./coneq_max_list*nomlz_fval;
     else
+        coneq_max_list = [];
         coneq_nomlz_list = [];
     end
 
-    if search_flag == 0
-        % global search
-        [x_global_infill, feasiable_index_list, ...
-            kriging_model_fval, kriging_model_con, kriging_model_coneq] = searchGlobal...
-            (x_list, fval_nomlz_list, con_nomlz_list, coneq_nomlz_list, ...
-            variable_number, low_bou, up_bou, cheapcon_function, nonlcon_torlance, ...
-            GPC_hyp, ...
-            kriging_model_fval, kriging_model_con, kriging_model_coneq, ...
-            expensive_nonlcon_flag);
+    % step 4
+    % select nearest point to construct RBF
+    %     [~, index] = min(fval_nomlz_list);
+    index = randi(size(x_list,1));
+    x_initial = x_list(index, :);
+    RBF_model_number = min(RBF_number, size(x_list, 1));
 
-        [x_global_infill, fval_global_infill, con_global_infill, coneq_global_infill, NFE_p, repeat_index] = dataLibraryUpdataProtect...
-            (data_library_name, model_function, x_global_infill, ...
-            x_list, low_bou, up_bou, protect_range);NFE = NFE+NFE_p;
-
-        x_list = [x_list;x_global_infill];
-        fval_list = [fval_list;fval_global_infill];
-        if ~isempty(con_list)
-            con_list = [con_list;con_global_infill];
-        end
-        if ~isempty(coneq_list)
-            coneq_list = [coneq_list;coneq_global_infill];
-        end
-
-        % whether impove pupolation, if imporve, continue global
-        % notice last one is x_local fval, con and coneq
-        search_flag = 1;
-        if isempty(x_global_infill)
-            continue;
-        end
-        if isempty(feasiable_index_list)
-            min_con = min(con_list(1:end-1, :), [], 1);
-            min_coneq = min(abs(coneq_list(1:end-1, :)), [], 1);
-            if ~isempty(con_list)
-                if ~sum(con_global_infill > min_con) % imporve
-                    search_flag = 0;
-                end
-            end
-            if ~isempty(coneq_list)
-                if ~sum(abs(coneq_global_infill) > min_coneq) % imporve
-                    search_flag = 0;
-                end
-            end
-        else
-            min_fval = min(fval_list(1:end-1, :), [], 1);
-            if fval_global_infill < min_fval  % imporve
-                search_flag = 0;
-            end
-        end
-
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            interpVisualize(kriging_model_fval, low_bou, up_bou);
-            line(x_global_infill(1), x_global_infill(2), fval_global_infill./fval_max*nomlz_fval, 'Marker', 'o', 'color', 'r');
-        end
+    distance = sum(((x_initial-x_list)./(up_bou-low_bou)).^2, 2);
+    [~, dis_index_list] = sort(distance);
+    index_list = [dis_index_list(1:RBF_model_number)];
+    x_list_model = x_list(index_list, :);
+    fval_nomlz_list_model = fval_nomlz_list(index_list, :);
+    if ~isempty(con_list)
+        con_nomlz_list_model = con_nomlz_list(index_list, :);
     else
-        % local search
-        [x_local_infill, feasiable_index_list, ...
-            RBF_model_fval, RBF_model_con, RBF_model_coneq] = searchLocal...
-            (x_list, fval_nomlz_list, con_nomlz_list, coneq_nomlz_list, ...
-            variable_number, low_bou, up_bou, cheapcon_function, nonlcon_torlance, ...
-            population_number, RBF_number, ...
-            expensive_nonlcon_flag);
+        con_nomlz_list_model = [];
+    end
+    if ~isempty(coneq_list)
+        coneq_nomlz_list_model = coneq_nomlz_list(index_list, :);
+    else
+        coneq_nomlz_list_model = [];
+    end
 
-        [x_local_infill, fval_local_infill, con_local_infill, coneq_local_infill, NFE_p, repeat_index] = dataLibraryUpdataProtect...
-            (data_library_name, model_function, x_local_infill, ...
-            x_list, low_bou, up_bou, protect_range);NFE = NFE+NFE_p;
+    % get RBF model and function
+    [RBF_model_fval, RBF_model_con, RBF_model_coneq, output_RBF] = getRadialBasisModel...
+        (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model);
+    object_function_surrogate = output_RBF.object_function_surrogate;
+    nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
 
-        x_list = [x_list;x_local_infill];
-        fval_list = [fval_list;fval_local_infill];
+    % if surrogate not convex
+    if object_function_surrogate(sum(x_list_model,1)/RBF_model_number)...
+            > sum(fval_nomlz_list_model)/RBF_model_number
+        low_bou_RBF = min(x_list_model, [], 1);
+        up_bou_RBF = max(x_list_model, [], 1);
+    else
+        low_bou_RBF=low_bou;
+        up_bou_RBF=up_bou;
+    end
+
+    % search local
+    [x_potential,fval_potential_predict]=fmincon(object_function_surrogate,x_initial,[],[],[],[],low_bou_RBF,up_bou_RBF,nonlcon_function_surrogate,...
+        optimoptions('fmincon','Display','none','Algorithm','sqp'));
+
+    %     % step 5
+    %     % MSP guideline to obtain x_adapt
+    %     [x_potential, ~, exitflag, ~] = findMinMSP...
+    %         (object_function_surrogate, variable_number, low_bou, up_bou, nonlcon_function_surrogate, ...
+    %         cheapcon_function, nonlcon_torlance);
+    %
+    %     if exitflag  ==  -2
+    %         % optimal feasiblilty if do not exist feasible point
+    %         object_nonlcon_function_surrogate = @(x) objectNonlconFunctionSurrogate(x, nonlcon_function_surrogate);
+    %         [x_potential, ~, exitflag, ~] = findMinMSP...
+    %             (object_nonlcon_function_surrogate, variable_number, low_bou, up_bou, [], ...
+    %             cheapcon_function, nonlcon_torlance);
+    %     end
+
+    % check x_potential if exist in data library
+    % if not, updata data libraray
+    [x_potential, fval_potential, con_potential, coneq_potential, NFE_p, repeat_index] = dataLibraryUpdataProtect...
+        (data_library_name, model_function, x_potential, x_list, low_bou, up_bou, protect_range);NFE = NFE+NFE_p;
+    x_list = [x_list;x_potential];
+    fval_list = [fval_list;fval_potential];
+    if ~isempty(con_list)
+        con_list = [con_list;con_potential];
+    end
+    if ~isempty(coneq_list)
+        coneq_list = [coneq_list;coneq_potential];
+    end
+
+    % normalization fval updata
+    if ~isempty(fval_potential)
+        fval_potential_nomlz = fval_potential/fval_max*nomlz_fval;
+        fval_nomlz_list = [fval_nomlz_list;fval_potential_nomlz];
+    end
+    if ~isempty(con_potential)
+        con_potential_nomlz = (con_potential./con_max_list)*nomlz_fval;
+        con_nomlz_list = [con_nomlz_list;con_potential_nomlz];
+    end
+    if ~isempty(coneq_potential)
+        coneq_potential_nomlz = (coneq_potential./coneq_max_list)*nomlz_fval;
+        coneq_nomlz_list = [coneq_nomlz_list;coneq_potential_nomlz];
+    end
+
+    % when x_potential is exist in data library, x_potential_add will be
+    % empty, this times we will use origin point data
+    if isempty(x_potential)
+        x_potential = x_list(repeat_index, :);
+        fval_potential = fval_list(repeat_index, :);
         if ~isempty(con_list)
-            con_list = [con_list;con_local_infill];
+            con_potential = con_list(repeat_index, :);
+        else
+            con_potential = [];
         end
         if ~isempty(coneq_list)
-            coneq_list = [coneq_list;coneq_local_infill];
-        end
-
-        % whether impove pupolation, if imporve, continue local
-        % notice last one is x_local fval, con and coneq
-        search_flag = 0;
-        if isempty(x_local_infill)
-            continue;
-        end
-
-        if isempty(feasiable_index_list)
-            min_con = min(con_list(1:end-1), [], 1);
-            min_coneq = min(abs(coneq_list(1:end-1)), [], 1);
-            if ~isempty(con_list)
-                if ~sum(max(con_local_infill) > min_con) % imporve
-                    search_flag = 1;
-                end
-            end
-            if isempty(coneq_list)
-                if ~sum(max(abs(coneq_local_infill)) > min_coneq) % imporve
-                    search_flag = 1;
-                end
-            end
+            coneq_potential = coneq_list(repeat_index, :);
         else
-            min_fval = min(fval_list(1:end-1), [], 1);
-            if fval_local_infill <= min_fval  % imporve
-                search_flag = 1;
-            end
-        end
-
-        if DRAW_FIGURE_FLAG && variable_number < 3
-            interpVisualize(RBF_model_fval, low_bou, up_bou);
-            line(x_local_infill(1), x_local_infill(2), fval_local_infill./fval_max*nomlz_fval, 'Marker', 'o', 'color', 'r');
+            coneq_potential = [];
         end
     end
 
+    if DRAW_FIGURE_FLAG && variable_number < 3
+        interpVisualize(RBF_model_fval, low_bou, up_bou);
+        line(x_potential(1), x_potential(2), fval_potential/fval_max*nomlz_fval, 'Marker', 'o', 'color', 'r', 'LineStyle', 'none')
+    end
+
+    % step 6
     % find best result to record
     [x_best, fval_best, con_best, coneq_best] = findMinRaw...
         (x_list, fval_list, con_list, coneq_list, ...
@@ -452,19 +457,13 @@ while ~done
 
     if INFORMATION_FLAG
         fprintf('iteration:          %-3d    NFE:    %-3d\n', iteration, NFE);
-        if infor_search_flag == 0
-            fprintf('global x:          %s\n', num2str(x_global_infill));
-            fprintf('global value:      %f\n', fval_global_infill);
-            fprintf('global violation:  %s  %s\n', num2str(con_global_infill), num2str(coneq_global_infill));
-        else
-            fprintf('local  x:          %s\n', num2str(x_local_infill));
-            fprintf('local  value:      %f\n', fval_local_infill);
-            fprintf('local  violation:  %s  %s\n', num2str(con_local_infill), num2str(coneq_local_infill));
-        end
+        fprintf('current x:          %s\n', num2str(x_potential));
+        fprintf('current value:      %f\n', fval_potential);
+        fprintf('current violation:  %s  %s\n', num2str(con_potential), num2str(coneq_potential));
         fprintf('\n');
     end
 
-    result_x_best(iteration, :) = x_best';
+    result_x_best(iteration, :) = x_best;
     result_fval_best(iteration, :) = fval_best;
     iteration = iteration+1;
 
@@ -476,7 +475,7 @@ while ~done
     % convergence judgment
     if CONVERGENCE_JUDGMENT_FLAG
         if (iteration > 2 && ...
-                abs((fval_best-fval_best_old)/fval_best_old) < torlance)
+                abs((fval_potential-fval_potential_old)/fval_potential_old) < torlance)
             done = 1;
             if ~isempty(con_best)
                 if sum(con_best > nonlcon_torlance)
@@ -490,259 +489,258 @@ while ~done
             end
         end
     end
+
+    % Interest space sampling
+    if ~done
+        [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
+        %     model_index = [normal_index, small_index];
+        %     x_list_model = x_list(model_index, :);
+        %     fval_nomlz_list_model = fval_nomlz_list(model_index, :);
+        %     if ~isempty(con_list)
+        %         con_nomlz_list_model = con_nomlz_list(model_index, :);
+        %     else
+        %         con_nomlz_list_model = [];
+        %     end
+        %     if ~isempty(coneq_list)
+        %         coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+        %     else
+        %         coneq_nomlz_list_model = [];
+        %     end
+        x_list_model = x_list;
+        fval_nomlz_list_model = fval_nomlz_list; fval_nomlz_list_model(large_index) = quantile(end);
+        if ~isempty(con_list)
+            con_nomlz_list_model = con_nomlz_list(model_index, :);
+        else
+            con_nomlz_list_model = [];
+        end
+        if ~isempty(coneq_list)
+            coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
+        else
+            coneq_nomlz_list_model = [];
+        end
+
+        % get kriging model and function
+        [kriging_model_fval, ~, ~, output_kriging] = getKrigingModel...
+            (x_list_model, fval_nomlz_list_model, [], [], ...
+            kriging_model_fval);
+        object_function_surrogate = output_kriging.object_function_surrogate;
+
+        % step 7
+        % using SVM to identify area which is interesting
+        if expensive_nonlcon_flag
+            % because data prefer getting better
+            filter_index_list = [];% filter point list
+            feasible_index_list = [];% feasible point list
+
+            % generate filter
+            for x_index = 1:size(x_list, 1)
+                con_x_nomlz = [];
+                if ~isempty(con_nomlz_list)
+                    con_x_nomlz = max(con_nomlz_list(x_index, :));
+                end
+                coneq_x_nomlz = [];
+                if ~isempty(coneq_nomlz_list)
+                    coneq_x_nomlz = max(abs(coneq_nomlz_list(x_index, :)));
+                end
+                total_con_x_nomlz = max([con_x_nomlz;coneq_x_nomlz]);
+
+                % only with constraint will add into filter
+                if (total_con_x_nomlz > filter_torlance)
+                    add_filter_flag = 1;
+
+                    filter_index_list_unit = 1;
+                    while filter_index_list_unit <=  length(filter_index_list)
+                        x_filter_index = filter_index_list(filter_index_list_unit, :);
+
+                        % get h(x) of x and x_filter
+                        con_filter_nomlz = [];
+                        if ~isempty(con_nomlz_list)
+                            con_filter_nomlz = max(con_nomlz_list(x_filter_index, :));
+                        end
+                        coneq_filter_nomlz = [];
+                        if ~isempty(coneq_nomlz_list)
+                            coneq_filter_nomlz = max(coneq_nomlz_list(x_filter_index, :));
+                        end
+                        total_con_filter_nomlz = max([con_filter_nomlz;coneq_filter_nomlz]);
+
+                        % if cannot improve filter, reject it
+                        if (fval_nomlz_list(x_index) > fval_nomlz_list(x_filter_index)) && ...
+                                (total_con_x_nomlz > total_con_filter_nomlz)
+                            add_filter_flag = 0;
+                            break;
+                        end
+
+                        % if better than filter, reject filter
+                        if (fval_nomlz_list(x_index) < fval_nomlz_list(x_filter_index)) && ...
+                                (total_con_x_nomlz < total_con_filter_nomlz)
+                            filter_index_list(filter_index_list_unit) = [];
+                            filter_index_list_unit = filter_index_list_unit-1;
+                        end
+
+                        filter_index_list_unit = filter_index_list_unit+1;
+                    end
+                    % add into filter list if possible
+                    if add_filter_flag
+                        filter_index_list = [filter_index_list;x_index];
+                    end
+                else
+                    feasible_index_list = [feasible_index_list;x_index];
+                end
+            end
+            %         last_end_index = size(x_list, 1);
+            if length(feasible_index_list) > 0.2*size(x_list, 1)
+                filter_torlance = filter_torlance/2;
+            end
+
+            fval_label = -ones(size(x_list, 1), 1);
+            fval_label(filter_index_list) = 1;
+
+            % feasible point set label 1
+            fval_label(feasible_index_list) = 1;
+
+            % use filter and train SVM
+            [predict_function_GPC, model_GPC] = classifyGaussProcess...
+                (x_list, fval_label, GPC_hyp);
+            GPC_hyp = model_GPC.hyp;
+            if DRAW_FIGURE_FLAG && variable_number < 3
+                classifyVisualization...
+                    (model_GPC, low_bou, up_bou);
+            end
+
+            % get data to obtain clustering center
+            x_sup_list = x_data_list(predict_function_GPC(x_data_list)  ==  1, :);
+
+            if isempty(x_sup_list)
+                % no sup point found use filter point
+                if isempty(feasible_index_list)
+                    if ~isempty(con_nomlz_list)
+                        con_filter_nomlz_list = con_nomlz_list(filter_index_list);
+                    else
+                        con_filter_nomlz_list = [];
+                    end
+                    if ~isempty(coneq_nomlz_list)
+                        coneq_filter_nomlz_list = coneq_nomlz_list(filter_index_list);
+                    else
+                        coneq_filter_nomlz_list = [];
+                    end
+                    max_totalcon_list = max([con_filter_nomlz_list, coneq_filter_nomlz_list], [], 2);
+                    [~, filter_min_index] = min(max_totalcon_list);
+                    x_center = x_list(filter_index_list(filter_min_index), :);
+                else
+                    [~, min_fval_index] = min(fval_list(feasible_index_list));
+                    x_center = x_list(feasible_index_list(min_fval_index), :);
+                end
+            end
+        
+            object_function_PF=@(X) PFFunction(object_function_surrogate_KS,X);
+        else
+            
+            % interset sampling
+            %             [fval_sort, index_list] = sort(fval_list);
+            %             x_list_sort = x_list(index_list, :);
+            %             index = floor(size(fval_list, 1)/2);
+            %             fval_thresh = fval_sort(index);
+            fval_thresh = prctile(fval_list, 25);
+
+            % step 7-1
+            % classify exist data
+            fval_label = -ones(size(x_list, 1), 1);
+            boolean_list = fval_list <= fval_thresh;
+            fval_label(boolean_list) = 1;
+            x_positive_list = x_list(boolean_list,:);
+
+            % step 7-2
+            % get a large number of x point, use SVM to predict x point
+            [predict_function_GPC, model_GPC] = classifyGaussProcess...
+                (x_list, fval_label, GPC_hyp);
+            GPC_hyp = model_GPC.hyp;
+            if DRAW_FIGURE_FLAG && variable_number < 3
+                classifyVisualization...
+                    (model_GPC, low_bou, up_bou);
+            end
+
+            EI_function = @(X) EIFunction(object_function_surrogate, X, min(fval_nomlz_list));
+            IF_function = @(X) IFFunction(x_list, X, exp(kriging_model_fval.hyp), variable_number);
+            LCB_function = @(X) -LCBFunction(object_function_surrogate, X, 10);
+            PGPC_function = @(X) PGPCFunction(predict_function_GPC, X);
+
+            x_data_list = lhsdesign(sample_number_initial*10, variable_number)...
+                .*(up_bou - low_bou) + low_bou;
+
+            % new function
+            PGPCEIF_function = @(X) LCB_function(X).*PGPC_function(X);
+
+%             % mulit start search
+%             fval_PGPCEIF = 1;
+%             for x_index = 1:size(x_positive_list,1)
+%                 [x_potential_iter, fval_PGPCEIF_iter] = fmincon(PGPCEIF_function,x_positive_list(x_index,:), [], [], [], [], low_bou, up_bou,...
+%                     cheapcon_function, optimoptions('fmincon', 'Algorithm', 'sqp', 'Display', 'none', 'OptimalityTolerance', 1e-2));
+%                 if fval_PGPCEIF_iter < fval_PGPCEIF
+%                     x_potential = x_potential_iter;
+%                     fval_PGPCEIF = fval_PGPCEIF_iter;
+%                 end
+%             end
+            
+            % start in min fval
+            [~, index] = min(PGPC_function(x_positive_list));
+            [x_potential, fval_PGPCEIF] = fmincon(PGPCEIF_function, x_positive_list(index,:), [], [], [], [], low_bou, up_bou,...
+                cheapcon_function, optimoptions('fmincon', 'Algorithm', 'sqp', 'Display', 'none'));
+
+            if DRAW_FIGURE_FLAG && variable_number < 3
+                interpVisualize(kriging_model_fval, low_bou, up_bou);
+                line(x_potential(1), x_potential(2), object_function_surrogate(x_potential), 'Marker', 'o', 'color', 'r', 'LineStyle', 'none')
+            end
+
+            x_updata_list = x_potential;
+        end
+
+%         % step 7-3
+%         % calculate clustering center
+%         if ~isempty(x_sup_list)
+%             FC_model = classifyFuzzyClustering...
+%                 (x_sup_list, 1, m);
+%             x_center = FC_model.center_list;
+%         end
+
+%         % updata ISR
+%         x_potential_nomlz = (x_potential-low_bou)./(up_bou-low_bou);
+%         x_center_nomlz = (x_center-low_bou)./(up_bou-low_bou);
+%         bou_range_nomlz = eta*norm(x_potential_nomlz-x_center_nomlz, 2);
+%         if bou_range_nomlz < 1e-2
+%             bou_range_nomlz = 1e-2;
+%         end
+%         bou_range = bou_range_nomlz.*(up_bou-low_bou);
+%         low_bou_ISR = x_potential-bou_range;
+%         low_bou_ISR = max(low_bou_ISR, low_bou);
+%         up_bou_ISR = x_potential+bou_range;
+%         up_bou_ISR = min(up_bou_ISR, up_bou);
+
+%         if DRAW_FIGURE_FLAG && variable_number < 3
+%             bou_line = [low_bou_ISR;[low_bou_ISR(1), up_bou_ISR(2)];up_bou_ISR;[up_bou_ISR(1), low_bou_ISR(2)];low_bou_ISR];
+%             line(bou_line(:, 1), bou_line(:, 2));
+%             line(x_potential(1), x_potential(2), 'Marker', 'x')
+%         end
+
+%         % sampling in ISR
+%         [x_list_exist, ~, ~, ~] = dataLibraryLoad...
+%             (data_library_name, low_bou_ISR, up_bou_ISR);
+%         %     [~, x_updata_list, ~] = getLatinHypercube...
+%         %         (sample_number_iteration+size(x_list_exist, 1), variable_number, x_list_exist, ...
+%         %         low_bou_ISR, up_bou_ISR, cheapcon_function);
+%         x_updata_list = lhsdesign(sample_number_iteration, variable_number)...
+%             .*(up_bou_ISR-low_bou_ISR)+low_bou_ISR;
+
+    end
+
+    x_potential_old = x_potential;
+    fval_potential_old = fval_potential;
     fval_best_old = fval_best;
-
 end
-
 result_x_best = result_x_best(1:iteration-1, :);
 result_fval_best = result_fval_best(1:iteration-1);
 
 output.result_x_best = result_x_best;
 output.result_fval_best = result_fval_best;
-
-    function [x_global_infill, feasiable_index_list, ...
-            kriging_model_fval, kriging_model_con, kriging_model_coneq] = searchGlobal...
-            (x_list, fval_nomlz_list, con_nomlz_list, coneq_nomlz_list, ...
-            variable_number, low_bou, up_bou, cheapcon_function, nonlcon_torlance, ...
-            GPC_hyp, ...
-            kriging_model_fval, kriging_model_con, kriging_model_coneq, ...
-            expensive_nonlcon_flag)
-        % find global infill point function
-        %
-
-        if ~done
-            [quantile, normal_index, small_index, large_index] = findUnusual(fval_nomlz_list);
-            %     model_index = [normal_index, small_index];
-            %     x_list_model = x_list(model_index, :);
-            %     fval_nomlz_list_model = fval_nomlz_list(model_index, :);
-            %     if ~isempty(con_list)
-            %         con_nomlz_list_model = con_nomlz_list(model_index, :);
-            %     else
-            %         con_nomlz_list_model = [];
-            %     end
-            %     if ~isempty(coneq_list)
-            %         coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
-            %     else
-            %         coneq_nomlz_list_model = [];
-            %     end
-            x_list_model = x_list;
-            fval_nomlz_list_model = fval_nomlz_list; fval_nomlz_list_model(large_index) = quantile(end);
-            if ~isempty(con_list)
-                con_nomlz_list_model = con_nomlz_list(model_index, :);
-            else
-                con_nomlz_list_model = [];
-            end
-            if ~isempty(coneq_list)
-                coneq_nomlz_list_model = coneq_nomlz_list(model_index, :);
-            else
-                coneq_nomlz_list_model = [];
-            end
-
-            % get kriging model and function
-            [kriging_model_fval, ~, ~, output_kriging] = getKrigingModel...
-                (x_list_model, fval_nomlz_list_model, [], [], ...
-                kriging_model_fval);
-            object_function_surrogate = output_kriging.object_function_surrogate;
-
-            % step 7
-            % using SVM to identify area which is interesting
-            if expensive_nonlcon_flag
-                % because data prefer getting better
-                filter_index_list = [];% filter point list
-                feasible_index_list = [];% feasible point list
-
-                % generate filter
-                for x_index = 1:size(x_list, 1)
-                    con_x_nomlz = [];
-                    if ~isempty(con_nomlz_list)
-                        con_x_nomlz = max(con_nomlz_list(x_index, :));
-                    end
-                    coneq_x_nomlz = [];
-                    if ~isempty(coneq_nomlz_list)
-                        coneq_x_nomlz = max(abs(coneq_nomlz_list(x_index, :)));
-                    end
-                    total_con_x_nomlz = max([con_x_nomlz;coneq_x_nomlz]);
-
-                    % only with constraint will add into filter
-                    if (total_con_x_nomlz > filter_torlance)
-                        add_filter_flag = 1;
-
-                        filter_index_list_unit = 1;
-                        while filter_index_list_unit <=  length(filter_index_list)
-                            x_filter_index = filter_index_list(filter_index_list_unit, :);
-
-                            % get h(x) of x and x_filter
-                            con_filter_nomlz = [];
-                            if ~isempty(con_nomlz_list)
-                                con_filter_nomlz = max(con_nomlz_list(x_filter_index, :));
-                            end
-                            coneq_filter_nomlz = [];
-                            if ~isempty(coneq_nomlz_list)
-                                coneq_filter_nomlz = max(coneq_nomlz_list(x_filter_index, :));
-                            end
-                            total_con_filter_nomlz = max([con_filter_nomlz;coneq_filter_nomlz]);
-
-                            % if cannot improve filter, reject it
-                            if (fval_nomlz_list(x_index) > fval_nomlz_list(x_filter_index)) && ...
-                                    (total_con_x_nomlz > total_con_filter_nomlz)
-                                add_filter_flag = 0;
-                                break;
-                            end
-
-                            % if better than filter, reject filter
-                            if (fval_nomlz_list(x_index) < fval_nomlz_list(x_filter_index)) && ...
-                                    (total_con_x_nomlz < total_con_filter_nomlz)
-                                filter_index_list(filter_index_list_unit) = [];
-                                filter_index_list_unit = filter_index_list_unit-1;
-                            end
-
-                            filter_index_list_unit = filter_index_list_unit+1;
-                        end
-                        % add into filter list if possible
-                        if add_filter_flag
-                            filter_index_list = [filter_index_list;x_index];
-                        end
-                    else
-                        feasible_index_list = [feasible_index_list;x_index];
-                    end
-                end
-                %         last_end_index = size(x_list, 1);
-                if length(feasible_index_list) > 0.2*size(x_list, 1)
-                    filter_torlance = filter_torlance/2;
-                end
-
-                fval_label = -ones(size(x_list, 1), 1);
-                fval_label(filter_index_list) = 1;
-
-                % feasible point set label 1
-                fval_label(feasible_index_list) = 1;
-
-                % use filter and train SVM
-                [predict_function_GPC, model_GPC] = classifyGaussProcess...
-                    (x_list, fval_label, GPC_hyp);
-                GPC_hyp = model_GPC.hyp;
-                if DRAW_FIGURE_FLAG && variable_number < 3
-                    classifyVisualization...
-                        (model_GPC, low_bou, up_bou);
-                end
-
-                object_function_PF=@(X) PFFunction(object_function_surrogate_KS,X);
-            else
-                feasiable_index_list = 1:size(x_list, 1);
-
-                % interset sampling
-                %             [fval_sort, index_list] = sort(fval_list);
-                %             x_list_sort = x_list(index_list, :);
-                %             index = floor(size(fval_list, 1)/2);
-                %             fval_thresh = fval_sort(index);
-                fval_thresh = prctile(fval_nomlz_list, 25);
-
-                % step 7-1
-                % classify exist data
-                fval_label = -ones(size(x_list, 1), 1);
-                boolean_list = fval_nomlz_list <= fval_thresh;
-                fval_label(boolean_list) = 1;
-                x_positive_list = x_list(boolean_list,:);
-
-                % step 7-2
-                % get a large number of x point, use SVM to predict x point
-                [predict_function_GPC, model_GPC] = classifyGaussProcess...
-                    (x_list, fval_label, GPC_hyp);
-                GPC_hyp = model_GPC.hyp;
-                if DRAW_FIGURE_FLAG && variable_number < 3
-                    classifyVisualization...
-                        (model_GPC, low_bou, up_bou);
-                end
-
-                EI_function = @(X) EIFunction(object_function_surrogate, X, min(fval_nomlz_list));
-                IF_function = @(X) IFFunction(x_list, X, exp(kriging_model_fval.hyp), variable_number);
-                LCB_function = @(X) -LCBFunction(object_function_surrogate, X, 10);
-                PGPC_function = @(X) PGPCFunction(predict_function_GPC, X);
-
-                % new function
-                PGPCEIF_function = @(X) -EI_function(X).*PGPC_function(X);
-
-                %             % mulit start search
-                %             fval_PGPCEIF = 1;
-                %             for x_index = 1:size(x_positive_list,1)
-                %                 [x_potential_iter, fval_PGPCEIF_iter] = fmincon(PGPCEIF_function,x_positive_list(x_index,:), [], [], [], [], low_bou, up_bou,...
-                %                     cheapcon_function, optimoptions('fmincon', 'Algorithm', 'sqp', 'Display', 'none', 'OptimalityTolerance', 1e-2));
-                %                 if fval_PGPCEIF_iter < fval_PGPCEIF
-                %                     x_potential = x_potential_iter;
-                %                     fval_PGPCEIF = fval_PGPCEIF_iter;
-                %                 end
-                %             end
-
-                % start in min fval
-                [~, index] = min(PGPC_function(x_positive_list));
-                [x_potential, fval_PGPCEIF] = fmincon(PGPCEIF_function, x_positive_list(index,:), [], [], [], [], low_bou, up_bou,...
-                    cheapcon_function, optimoptions('fmincon', 'Algorithm', 'sqp', 'Display', 'none'));
-
-                if DRAW_FIGURE_FLAG && variable_number < 3
-                    interpVisualize(kriging_model_fval, low_bou, up_bou);
-                    line(x_potential(1), x_potential(2), object_function_surrogate(x_potential), 'Marker', 'o', 'color', 'r', 'LineStyle', 'none')
-                end
-
-                x_global_infill = x_potential;
-            end
-
-        end
-    end
-    function [x_local_infill, feasiable_index_list, ...
-            RBF_model_fval, RBF_model_con, RBF_model_coneq] = searchLocal...
-            (x_list, fval_nomlz_list, con_nomlz_list, coneq_nomlz_list, ...
-            variable_number, low_bou, up_bou, cheapcon_function, nonlcon_torlance, ...
-            population_number, RBF_number, ...
-            expensive_nonlcon_flag)
-        % find local infill point function
-        %
-
-        % step 4
-        % select nearest point to construct RBF
-        [~, index] = min(fval_nomlz_list);
-%         index = randi(size(x_list,1));
-        x_initial = x_list(index, :);
-        RBF_model_number = min(RBF_number, size(x_list, 1));
-
-        feasiable_index_list = 1:size(x_list, 1);
-
-        distance = sum(((x_initial-x_list)./(up_bou-low_bou)).^2, 2);
-        [~, dis_index_list] = sort(distance);
-        index_list = [dis_index_list(1:RBF_model_number)];
-        x_list_model = x_list(index_list, :);
-        fval_nomlz_list_model = fval_nomlz_list(index_list, :);
-        if ~isempty(con_list)
-            con_nomlz_list_model = con_nomlz_list(index_list, :);
-        else
-            con_nomlz_list_model = [];
-        end
-        if ~isempty(coneq_list)
-            coneq_nomlz_list_model = coneq_nomlz_list(index_list, :);
-        else
-            coneq_nomlz_list_model = [];
-        end
-
-        % get RBF model and function
-        [RBF_model_fval, RBF_model_con, RBF_model_coneq, output_RBF] = getRadialBasisModel...
-            (x_list_model, fval_nomlz_list_model, con_nomlz_list_model, coneq_nomlz_list_model);
-        object_function_surrogate = output_RBF.object_function_surrogate;
-        nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
-
-        % if surrogate not convex
-        if object_function_surrogate(sum(x_list_model,1)/RBF_model_number)...
-                > sum(fval_nomlz_list_model)/RBF_model_number
-            low_bou_RBF = min(x_list_model, [], 1);
-            up_bou_RBF = max(x_list_model, [], 1);
-        else
-            low_bou_RBF=low_bou;
-            up_bou_RBF=up_bou;
-        end
-
-        % search local
-        [x_local_infill,fval_potential_predict]=fmincon(object_function_surrogate,x_initial,[],[],[],[],low_bou_RBF,up_bou_RBF,nonlcon_function_surrogate,...
-            optimoptions('fmincon','Display','none','Algorithm','sqp'));
-
-    end
 
     function [fval, con, coneq] = modelFunction...
             (x, object_function, nonlcon_function)
@@ -1160,7 +1158,7 @@ while ~done
                 1/sum((X_center_dis_sq(classify_index, x_index)./X_center_dis_sq(:, x_index)).^(1/(m-1)));
         end
     end
-
+    
     % updata center_list
     center_list_old = center_list;
     for classify_index = 1:classify_number
@@ -1168,7 +1166,7 @@ while ~done
             sum((U(classify_index, :)').^m.*X_nomlz, 1)./...
             sum((U(classify_index, :)').^m, 1);
     end
-
+    
     % updata X_center_dis_sq
     X_center_dis_sq = zeros(classify_number, x_number);
     for classify_index = 1:classify_number
@@ -1177,19 +1175,19 @@ while ~done
                 getSq((X_nomlz(x_index, :)-center_list(classify_index, :)));
         end
     end
-
-    %     plot(center_list(:, 1), center_list(:, 2));
-
+    
+%     plot(center_list(:, 1), center_list(:, 2));
+    
     % forced interrupt
     if iteration > iteration_max
         done = 1;
     end
-
+    
     % convergence judgment
     if sum(sum(center_list_old-center_list).^2)<torlance
         done = 1;
     end
-
+    
     iteration = iteration+1;
     fval_loss_list(iteration) = sum(sum(U.^m.*X_center_dis_sq));
 end
@@ -2144,10 +2142,10 @@ radialbasis_model.predict_function = predict_function;
         % Copyright 2022 Adel
         %
         rdibas_matrix = basis_function(X_dis);
-
+        
         % stabilize matrix
         rdibas_matrix = rdibas_matrix+eye(x_number)*1e-6;
-
+        
         % solve beta
         beta = rdibas_matrix\Y;
     end
@@ -2161,7 +2159,7 @@ radialbasis_model.predict_function = predict_function;
 
         % normalize data
         X_pred_nomlz = (X_pred-aver_X)./stdD_X;
-
+        
         % calculate distance
         X_dis_pred = zeros(x_pred_num, x_num);
         for vari_index = 1:vari_num
@@ -2169,10 +2167,10 @@ radialbasis_model.predict_function = predict_function;
                 (X_pred_nomlz(:, vari_index)-X_nomlz(:, vari_index)').^2;
         end
         X_dis_pred = sqrt(X_dis_pred);
-
+        
         % predict variance
         Y_pred = basis_function(X_dis_pred)*beta;
-
+        
         % normalize data
         Y_pred = Y_pred*stdD_Y + aver_Y;
     end
