@@ -108,8 +108,8 @@ cheapcon_function = [];
 % model_function = [];
 
 % variable_number = 13;
-% object_function = @benchmark.singleG01Object;
-% object_function_low = @benchmark.singleG01ObjectLow;
+% object_function = @(x) benchmark.singleG01Object(x);
+% object_function_low = @(x) benchmark.singleG01ObjectLow(x);
 % A = [ 2   2   0   0   0   0   0   0   0   1   1   0   0;
 %     2   0   2   0   0   0   0   0   0   1   0   1   0;
 %     0   2   2   0   0   0   0   0   0   0   1   1   0;

@@ -142,7 +142,7 @@ cheapcon_function = [];
 
 % x_initial = rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % fmincon_option = optimoptions('fmincon','Algorithm','sqp');
-% [x_best,fval_best,~,output,lambda,grad,hessian] = fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,fmincon_option)
+% [x_best,fval_best,~,output] = fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,fmincon_option)
 
 %% single run
 

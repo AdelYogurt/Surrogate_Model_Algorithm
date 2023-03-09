@@ -2,13 +2,14 @@ clc;
 clear;
 close all hidden;
 
-% load('PK.mat');
+load('PK.mat');
+Y = Y./max(abs(Y));
 
-load('matlab.mat');
-X = x_list_model;Y = fval_nomlz_list_model;
+% load('matlab.mat');
+% X = x_list_model;Y = fval_nomlz_list_model;
 
 basis_function = @(r) -r.^3;
-basis_function = [];
+% basis_function = [];
 
 [predict_function, radialbasis_model] = interpRadialBasisPreModel(X, Y, basis_function);
 figure_handle = figure(1);

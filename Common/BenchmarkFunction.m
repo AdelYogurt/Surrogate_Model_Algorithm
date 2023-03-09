@@ -462,28 +462,31 @@ classdef BenchmarkFunction < handle
         end
 
         function fval = singleG01Object(self,x)
+            % variable_number = 13;
             % object_function = @(x) benchmark.singleG01Object(x);
             % object_function_low = @(x) benchmark.singleG01ObjectLow(x);
-            % A = [ 2   2   0   0   0   0   0   0   0   1   1   0   0;
+            % A = [
+            %     2   2   0   0   0   0   0   0   0   1   1   0   0;
             %     2   0   2   0   0   0   0   0   0   1   0   1   0;
             %     0   2   2   0   0   0   0   0   0   0   1   1   0;
             %     -8  0   0   0   0   0   0   0   0   1   0   0   0;
             %     0   -8  0   0   0   0   0   0   0   0   1   0   0;
+            %     0   0   -8  0   0   0   0   0   0   0   0   1   0
             %     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
             %     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
             %     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
             %     ];
-            % B = [10;10;10;0;0;0;0;0];
+            % B = [10;10;10;0;0;0;0;0;0];
             % Aeq = [];
             % Beq = [];
-            % low_bou = zeros(13,1);
-            % up_bou = ones(13,1);
+            % low_bou = zeros(1,13);
+            % up_bou = ones(1,13);
             % up_bou(10:12) = 100;
             % nonlcon_function = @(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
             % nonlcon_function_LF = @(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
             % cheapcon_function = [];
             %
-            % x_best = [1,1,0,1,1,1,1,1,1,3,3,3,1], fval_best = -15;
+            % x_best = [1,1,1,1,1,1,1,1,1,3,3,3,1], fval_best = -15;
             %
             sigma1 = 0;
             for i = 1:4
