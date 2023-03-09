@@ -430,6 +430,7 @@ while ~done
             coneq_list = [coneq_list;coneq_local_infill];
             vio_infill = vio_infill+sum((abs(coneq_local_infill)-nonlcon_torlance),2);
         end
+        vio_list = [vio_list;vio_infill];
         
         % whether impove pupolation,if imporve,continue local
         % notice last one is x_local fval,con and coneq
@@ -619,7 +620,7 @@ output.result_fval_best = result_fval_best;
             end
             feasi_boolean_DE_list = vio_DE_list <= nonlcon_torlance;
         else
-            feasi_boolean_DE_list = true(ones(4*population_number,1));
+            feasi_boolean_DE_list = true(ones(1,4*population_number));
         end
         
         % if have feasiable_index_list,only use feasiable to choose
