@@ -344,7 +344,7 @@ cross_rate = 0.8;
 % max fval when normalize fval,con,coneq
 nomlz_fval = 100;
 
-protect_range = eps;
+protect_range = 1e-5;
 
 data_library_name = 'optimal_data_library';
 file_result = fopen('result_total.txt','a');
