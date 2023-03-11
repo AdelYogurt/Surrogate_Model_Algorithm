@@ -80,6 +80,17 @@ nonlcon_function = [];
 nonlcon_function_LF = [];
 cheapcon_function = [];
 
+% variable_number = 30;
+% object_function = @(x) benchmark.singleAckley30Object(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = -15*ones(1,variable_number);
+% up_bou = 20*ones(1,variable_number);
+% nonlcon_function = [];
+% cheapcon_function = [];
+
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
 % object_function_LF = @(x) benchmark.singleG06ObjectLow(x);
@@ -137,45 +148,45 @@ cheapcon_function = [];
 
 %% single run
 
-% delete([data_library_name,'.txt']);
-% delete('result_total.txt');
-% 
-% [x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
-%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-%     cheapcon_function,[],200,300)
-% result_x_best = output.result_x_best;
-% result_fval_best = output.result_fval_best;
-% 
-% figure(1);
-% plot(result_fval_best);
-% 
-% figure(2);
-% [x_list,fval_list,con_list,coneq_list] = dataLibraryLoad...
-%     (data_library_name,low_bou,up_bou);
-% scatter3(x_list(:,1),x_list(:,2),fval_list);
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
+delete([data_library_name,'.txt']);
+delete('result_total.txt');
+
+[x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
+    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+    cheapcon_function,[],200,500)
+result_x_best = output.result_x_best;
+result_fval_best = output.result_fval_best;
+
+figure(1);
+plot(result_fval_best);
+
+figure(2);
+[x_list,fval_list,con_list,coneq_list] = dataLibraryLoad...
+    (data_library_name,low_bou,up_bou);
+scatter3(x_list(:,1),x_list(:,2),fval_list);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
 
 %% repeat run
 
-repeat_number = 10;
-result_fval = zeros(repeat_number,1);
-max_NFE = 200;
-for repeat_index = 1:repeat_number
-    delete([data_library_name,'.txt']);
-    delete('result_total.txt');
-
-    [x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
-        (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-        cheapcon_function,[],max_NFE,300);
-    
-    result_fval(repeat_index) = fval_best;
-end
-
-fprintf('Fval     : lowest = %4.4f,mean = %4.4f,worst = %4.4f,std = %4.4f \n',min(result_fval),mean(result_fval),max(result_fval),std(result_fval));
-object_function_name = char(object_function);
-save([object_function_name(15:end-3),'_',num2str(max_NFE),'_RBF_GPC','.mat']);
+% repeat_number = 10;
+% result_fval = zeros(repeat_number,1);
+% max_NFE = 200;
+% for repeat_index = 1:repeat_number
+%     delete([data_library_name,'.txt']);
+%     delete('result_total.txt');
+% 
+%     [x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
+%         (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
+%         cheapcon_function,[],max_NFE,300);
+%     
+%     result_fval(repeat_index) = fval_best;
+% end
+% 
+% fprintf('Fval     : lowest = %4.4f,mean = %4.4f,worst = %4.4f,std = %4.4f \n',min(result_fval),mean(result_fval),max(result_fval),std(result_fval));
+% object_function_name = char(object_function);
+% save([object_function_name(15:end-3),'_',num2str(max_NFE),'_RBF_GPC','.mat']);
 
 %% main
 function [x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
@@ -216,7 +227,7 @@ if nargin < 7
 end
 
 DRAW_FIGURE_FLAG = 0; % whether draw data
-INFORMATION_FLAG = 1; % whether print data
+INFORMATION_FLAG = 0; % whether print data
 CONVERGENCE_JUDGMENT_FLAG = 0; % whether judgment convergence
 
 % hyper parameter
@@ -322,7 +333,7 @@ iteration = iteration+1;
 sigma_coord = sigma_coord_initial;
 C_success = 0;
 C_fail = 0;
-search_flag = 0; % global search or local search,0 is global and 1 is local
+search_flag = 'G'; % 'G' is global search,'l' is local search
 while ~done
     infor_search_flag = search_flag;
     % nomalization all data by max fval
@@ -344,51 +355,51 @@ while ~done
     % find fesiable data in current data library
     feasi_boolean_list = vio_list <= 0;
 
+    % step 4
+    % construct RBF model
+    % base on distance to x_list to repace predict variance
+    [RBF_model_fval,RBF_model_con,RBF_model_coneq,output_RBF] = getRadialBasisModel...
+        (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
+    object_function_surrogate = output_RBF.object_function_surrogate;
+    nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
+
     improve_flag = 0;
-%     search_flag = 0;
-    if search_flag == 0
+%     search_flag = 'G';
+    if search_flag == 'G'
         % global search
 
         % step 5
-%         % perturbed to get trial point
-%         coord_select_prob = coord_select_prob_initial*(1-log(NFE-sample_number_initial+1)/log(NFE_max-sample_number_initial));
-% 
-%         % select coordinates to perturb
-%         coordinate_select_list = [];
-%         for variable_index = 1:variable_number
-%             if rand() < coord_select_prob
-%                 coordinate_select_list = [coordinate_select_list,variable_index];
-%             end
-%         end
-%         if isempty(coordinate_select_list)
-%             coordinate_select_list = randi(variable_number);
-%         end
-% 
-%         % generate trial point
-%         x_trial_list = repmat(x_best,trial_number,1);
-%         for coordinate_select_index = 1:length(coordinate_select_list)
-%             coordinate_select = coordinate_select_list(coordinate_select_index);
-%             x_trial_list(:,coordinate_select) = x_trial_list(:,coordinate_select)+...
-%                 normrnd(0,sigma_coord(coordinate_select),[trial_number,1]);
-%         end
-        x_trial_list = repmat(x_best,trial_number,1);
+        % perturbed to get trial point
+        coord_select_prob = coord_select_prob_initial*(1-log(NFE-sample_number_initial+1)/log(NFE_max-sample_number_initial));
+
+        % select coordinates to perturb
+        coordinate_select_list = [];
         for variable_index = 1:variable_number
-            x_trial_list(:,variable_index) = x_trial_list(:,variable_index)+...
-                normrnd(0,sigma_coord(variable_index),[trial_number,1]);
+            if rand() < coord_select_prob
+                coordinate_select_list = [coordinate_select_list,variable_index];
+            end
         end
+        if isempty(coordinate_select_list)
+            coordinate_select_list = randi(variable_number);
+        end
+
+        % generate trial point
+        x_trial_list = repmat(x_best,trial_number,1);
+        for coordinate_select_index = 1:length(coordinate_select_list)
+            coordinate_select = coordinate_select_list(coordinate_select_index);
+            x_trial_list(:,coordinate_select) = x_trial_list(:,coordinate_select)+...
+                normrnd(0,sigma_coord(coordinate_select),[trial_number,1]);
+        end
+%         x_trial_list = repmat(x_best,trial_number,1);
+%         for variable_index = 1:variable_number
+%             x_trial_list(:,variable_index) = x_trial_list(:,variable_index)+...
+%                 normrnd(0,sigma_coord(variable_index),[trial_number,1]);
+%         end
         x_trial_list = max(x_trial_list,low_bou);
         x_trial_list = min(x_trial_list,up_bou);
-        
-        % step 4
-        % construct RBF model
-        % base on distance to x_list to repace predict variance
-        [RBF_model_fval,RBF_model_con,RBF_model_coneq,output_RBF] = getRadialBasisModel...
-            (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
-        object_function_surrogate = output_RBF.object_function_surrogate;
-        nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
-
-%         R2 = 1-sum((RBF_model_fval.beta./diag(RBF_model_fval.inv_radialbasis_matrix)).^2)/sum((RBF_model_fval.Y-mean(RBF_model_fval.Y)).^2);
-%         fprintf('global R2:  %f\n',R2);
+       
+        R2 = 1-sum((RBF_model_fval.beta./diag(RBF_model_fval.inv_radialbasis_matrix)).^2)/sum((RBF_model_fval.Y-mean(RBF_model_fval.Y)).^2);
+        fprintf('global R2:  %f\n',R2);
 
         % evaluate each x_offspring fval and constraints
         [fval_pred_trial_list] = object_function_surrogate(x_trial_list);
@@ -472,7 +483,7 @@ while ~done
 
         % whether impove pupolation,if imporve,continue global
         % notice last one is x_local fval,con and coneq
-        search_flag = 1;
+        next_search_flag = 'l';
         if isempty(x_global_infill)
             % continue;
             x_global_infill = x_list(repeat_index,:);
@@ -492,25 +503,25 @@ while ~done
 
             % improve, continue global search
             if vio_infill < min_vio
-                search_flag = 0;
+                next_search_flag = 'G';
                 improve_flag = 1;
             end
         else
             if expensive_nonlcon_flag
-                min_fval = min(fval_list([feasi_boolean_list;true(0)]),[],1);
+                min_fval = min(fval_list([feasi_boolean_list;false(1)]),[],1);
                 if vio_infill <= 0 % if exist constraint, infill point should feasible
                     vio_judge = 1;
                 else
                     vio_judge = 0;
                 end
             else
-                min_fval = min(fval_list);
+                min_fval = min(fval_list(1:end-1));
                 vio_judge = 1;
             end
 
             % imporve, continue global search
             if fval_global_infill < min_fval && vio_judge
-                search_flag = 0;
+                next_search_flag = 'G';
                 improve_flag = 1;
             end
         end
@@ -530,43 +541,10 @@ while ~done
 
         % step 8
         % rand select initial local point from x_list
-        x_index = index_list(randi(min(size(x_list,1),2*variable_number)));
-%         x_index = index_list(1);
+%         x_index = index_list(randi(min(size(x_list,1),2*variable_number)));
+        x_index = index_list(1);
         x_initial = x_list(x_index,:);
         
-%         % rank x_list data and select best point as initial local point
-%         [x_list_rank,~,~,~] = rankData...
-%             (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
-%             cheapcon_function,nonlcon_torlance);
-%         x_initial = x_list_rank(1,:);
-        
-        % select nearest point to construct RBF
-        RBF_number_local = min(RBF_number,size(x_list,1));
-        distance = sum(((x_initial-x_list)./(up_bou-low_bou)).^2,2);
-        [~,index_list] = sort(distance);
-        index_list = index_list(1:RBF_number_local);
-        x_RBF_list = x_list(index_list,:);
-        fval_RBF_nomlz_list = fval_nomlz_list(index_list,:);
-        if ~isempty(con_nomlz_list)
-            con_RBF_nomlz_list = con_nomlz_list(index_list,:);
-        else
-            con_RBF_nomlz_list = [];
-        end
-        if ~isempty(coneq_nomlz_list)
-            coneq_RBF_nomlz_list = coneq_nomlz_list(index_list,:);
-        else
-            coneq_RBF_nomlz_list = [];
-        end
-        
-        % modify
-        % get RBF model and function
-        [RBF_model_fval,RBF_model_con,RBF_model_coneq,output_RBF] = getRadialBasisModel...
-            (x_RBF_list,fval_RBF_nomlz_list,con_RBF_nomlz_list,coneq_RBF_nomlz_list);
-        object_function_surrogate = output_RBF.object_function_surrogate;
-        nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
-        low_bou_local = min(x_RBF_list,[],1);
-        up_bou_local = max(x_RBF_list,[],1);
-
         % get local infill point
         % obtian total constraint function
         if ~isempty(nonlcon_function_surrogate) || ~isempty(cheapcon_function)
@@ -577,14 +555,14 @@ while ~done
         end
         fmincon_options = optimoptions('fmincon','Display','none','Algorithm','sqp','MaxIterations',50);
         x_local_infill = fmincon(object_function_surrogate,x_initial,[],[],[],[],...
-            low_bou_local,up_bou_local,constraint_function,fmincon_options);
+            low_bou,up_bou,constraint_function,fmincon_options);
         
         [x_local_infill,fval_local_infill,con_local_infill,coneq_local_infill,NFE_p,repeat_index] = dataLibraryUpdataProtect...
             (data_library_name,model_function,x_local_infill,...
             x_list,low_bou,up_bou,protect_range);NFE = NFE+NFE_p;
 
-%         R2 = 1-sum((RBF_model_fval.beta./diag(RBF_model_fval.inv_radialbasis_matrix)).^2)/sum((RBF_model_fval.Y-mean(RBF_model_fval.Y)).^2);
-%         fprintf('local R2:  %f\n',R2);
+        R2 = 1-sum((RBF_model_fval.beta./diag(RBF_model_fval.inv_radialbasis_matrix)).^2)/sum((RBF_model_fval.Y-mean(RBF_model_fval.Y)).^2);
+        fprintf('local R2:  %f\n',R2);
         
         x_list = [x_list;x_local_infill];
         fval_list = [fval_list;fval_local_infill];
@@ -601,7 +579,7 @@ while ~done
         
         % whether impove pupolation,if imporve,continue local
         % notice last one is x_local fval,con and coneq
-        search_flag = 0;
+        next_search_flag = 'G';
         if isempty(x_local_infill)
             % continue;
             x_local_infill = x_list(repeat_index,:);
@@ -619,25 +597,25 @@ while ~done
 
             % improve, continue local search
             if vio_infill < min_vio
-                search_flag = 1;
+                next_search_flag = 'l';
                 improve_flag = 1;
             end
         else
             if expensive_nonlcon_flag
-                min_fval = min(fval_list([feasi_boolean_list;true(0)]),[],1);
+                min_fval = min(fval_list([feasi_boolean_list;false(1)]),[],1);
                 if vio_infill <= 0 % if exist constraint, infill point should feasible
                     vio_judge = 1;
                 else
                     vio_judge = 0;
                 end
             else
-                min_fval = min(fval_list);
+                min_fval = min(fval_list(1:end-1));
                 vio_judge = 1;
             end
 
             % imporve, continue local search
             if fval_local_infill < min_fval && vio_judge
-                search_flag = 1;
+                next_search_flag = 'l';
                 improve_flag = 1;
             end
         end
@@ -681,7 +659,7 @@ while ~done
     end
 
     if INFORMATION_FLAG
-        fprintf('fval:    %f    violation:    %f    NFE:    %-3d\n',fval_best,vio_best,NFE);
+        fprintf('%c  fval:    %f    violation:    %f    NFE:    %-3d\n',search_flag,fval_best,vio_best,NFE);
 %         fprintf('iteration:          %-3d    NFE:    %-3d\n',iteration,NFE);
 %         if infor_search_flag == 0
 %             fprintf('global x:          %s\n',num2str(x_global_infill));
@@ -723,6 +701,7 @@ while ~done
     end
 
     fval_best_old = fval_best;
+    search_flag = next_search_flag;
 end
 
 result_x_best = result_x_best(1:iteration-1,:);
@@ -992,6 +971,7 @@ function [radialbasis_model_fval,radialbasis_model_con,radialbasis_model_coneq,o
 % var_function is same
 %
 basis_function = @(r) r.^3;
+% basis_function = [];
 
 [predict_function_fval,radialbasis_model_fval] = interpRadialBasisPreModel...
     (x_list,fval_list,basis_function);
