@@ -723,19 +723,19 @@ pareto_index_list=[];% index of filter point list
 feasible_index_list=[];% feasible point list
 
 % select no domain filter
-for fval_index=1:size(fval_nomlz_list,1)
+for x_index=1:size(fval_nomlz_list,1)
     con_nomlz=[];
     if ~isempty(con_nomlz_list)
-        con_nomlz=max(con_nomlz_list(fval_index,:));
+        con_nomlz=max(con_nomlz_list(x_index,:));
     end
     coneq_nomlz=[];
     if ~isempty(coneq_nomlz_list)
-        coneq_nomlz=max(abs(coneq_nomlz_list(fval_index,:)));
+        coneq_nomlz=max(abs(coneq_nomlz_list(x_index,:)));
     end
     con_nomlz_max=max([con_nomlz;coneq_nomlz;0]); % con is large than 0 or 0
     
     if (con_nomlz_max <= pareto_torlance)
-        feasible_index_list=[feasible_index_list;fval_index];
+        feasible_index_list=[feasible_index_list;x_index];
     end
     
     % notice con_nomlz_max is greater than or equal to zero
@@ -765,7 +765,7 @@ for fval_index=1:size(fval_nomlz_list,1)
             break;
         elseif con_nomlz_max <= pareto_torlance && con_nomlz_pareto_max <= pareto_torlance
             % both is feasiable point
-            judge=fval_nomlz_list(fval_index,:)+pareto_torlance >= fval_nomlz_list(x_pareto_index,:);
+            judge=fval_nomlz_list(x_index,:)+pareto_torlance >= fval_nomlz_list(x_pareto_index,:);
             if ~sum(~judge)
                 add_filter_flag=0;
                 break;
@@ -778,7 +778,7 @@ for fval_index=1:size(fval_nomlz_list,1)
             pareto_index_list(pareto_index)=[];
             pareto_index=pareto_index-1;
         elseif con_nomlz_max <= pareto_torlance && con_nomlz_pareto_max <= pareto_torlance
-            judge=fval_nomlz_list(fval_index,:) <= fval_nomlz_list(x_pareto_index,:)+pareto_torlance;
+            judge=fval_nomlz_list(x_index,:) <= fval_nomlz_list(x_pareto_index,:)+pareto_torlance;
             if ~sum(~judge)
                 pareto_index_list(pareto_index)=[];
                 pareto_index=pareto_index-1;
@@ -790,7 +790,7 @@ for fval_index=1:size(fval_nomlz_list,1)
     
     % add into pareto list if possible
     if add_filter_flag
-        pareto_index_list=[pareto_index_list;fval_index];
+        pareto_index_list=[pareto_index_list;x_index];
     end
 end
 end

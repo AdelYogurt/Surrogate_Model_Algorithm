@@ -78,6 +78,7 @@ up_bou = ones(1,variable_number)*30;
 nonlcon_function = [];
 nonlcon_function_LF = [];
 cheapcon_function = [];
+model_function = @(x) modelFunction(x,@(x) benchmark.singleEP20Object(x),[]);
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -103,30 +104,33 @@ cheapcon_function = [];
 % Beq = [];
 % low_bou = [0,0,0,0];
 % up_bou = [1,1,50,240];
-% nonlcon_function = @(x) cheapconFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
+% nonlcon_function = @(x) violationFunction(x,A,B,Aeq,Beq,@(x) benchmark.singlePVD4Nonlcon(x));
 % cheapcon_function = [];
 % model_function = [];
 
 % variable_number = 13;
 % object_function = @(x) benchmark.singleG01Object(x);
 % object_function_low = @(x) benchmark.singleG01ObjectLow(x);
-% A = [ 2   2   0   0   0   0   0   0   0   1   1   0   0;
+% A = [
+%     2   2   0   0   0   0   0   0   0   1   1   0   0;
 %     2   0   2   0   0   0   0   0   0   1   0   1   0;
 %     0   2   2   0   0   0   0   0   0   0   1   1   0;
 %     -8  0   0   0   0   0   0   0   0   1   0   0   0;
 %     0   -8  0   0   0   0   0   0   0   0   1   0   0;
+%     0   0   -8  0   0   0   0   0   0   0   0   1   0
 %     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
 %     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
 %     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
 %     ];
-% B = [10;10;10;0;0;0;0;0];
+% B = [10;10;10;0;0;0;0;0;0];
 % Aeq = [];
 % Beq = [];
 % low_bou = zeros(1,13);
 % up_bou = ones(1,13);
 % up_bou(10:12) = 100;
-% nonlcon_function = @(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
-% nonlcon_function_LF = @(x) cheapconFunction(x,A,B,Aeq,Beq,[]);
+% nonlcon_function = [];
+% nonlcon_function_LF = [];
+% model_function = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) violationFunction(x,A,B,Aeq,Beq,[]));
 % cheapcon_function = [];
 
 % x_initial = rand(1,variable_number).*(up_bou-low_bou)+low_bou;
@@ -135,51 +139,51 @@ cheapcon_function = [];
 
 %% single run
 
-% delete([data_library_name,'.txt']);
-% delete('result_total.txt');
-% 
-% [x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
-%     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-%     cheapcon_function,[],50)
-% 
-% result_x_best = output.result_x_best;
-% result_fval_best = output.result_fval_best;
-% 
-% figure(1);
-% plot(result_fval_best);
-% 
-% figure(2);
-% [x_list,fval_list,con_list,coneq_list] = dataLibraryLoad...
-%     (data_library_name,low_bou,up_bou);
-% scatter3(x_list(:,1),x_list(:,2),fval_list);
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
+delete([data_library_name,'.txt']);
+delete('result_total.txt');
+
+[x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
+    (model_function,variable_number,low_bou,up_bou,...
+    cheapcon_function,200)
+
+result_x_best = output.result_x_best;
+result_fval_best = output.result_fval_best;
+
+figure(1);
+plot(result_fval_best);
+
+figure(2);
+[x_list,fval_list,con_list,coneq_list] = dataLibraryRead...
+    (data_library_name,low_bou,up_bou);
+scatter3(x_list(:,1),x_list(:,2),fval_list);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
 
 %% repeat run
 
-repeat_number = 10;
-result_fval = zeros(repeat_number,1);
-max_NFE = 200;
-for repeat_index = 1:repeat_number
-    delete([data_library_name,'.txt']);
-    delete('result_total.txt');
-
-    [x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
-        (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-        cheapcon_function,[],max_NFE);
-
-    result_fval(repeat_index) = fval_best;
-end
-
-fprintf('Fval     : lowest = %4.4f,mean = %4.4f,worst = %4.4f,std = %4.4f \n',min(result_fval),mean(result_fval),max(result_fval),std(result_fval));
-object_function_name = char(object_function);
-save([object_function_name(15:end-3),'_',num2str(max_NFE),'_SRBF_SVM','.mat']);
+% repeat_number = 10;
+% result_fval = zeros(repeat_number,1);
+% max_NFE = 200;
+% for repeat_index = 1:repeat_number
+%     delete([data_library_name,'.txt']);
+%     delete('result_total.txt');
+% 
+%     [x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
+%         (model_function,variable_number,low_bou,up_bou,...
+%         cheapcon_function,max_NFE);
+% 
+%     result_fval(repeat_index) = fval_best;
+% end
+% 
+% fprintf('Fval     : lowest = %4.4f,mean = %4.4f,worst = %4.4f,std = %4.4f \n',min(result_fval),mean(result_fval),max(result_fval),std(result_fval));
+% object_function_name = char(object_function);
+% save([object_function_name(15:end-3),'_',num2str(max_NFE),'_SRBF_SVM','.mat']);
 
 %% main
 function [x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
-    (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,model_function,....
+    (model_function,variable_number,low_bou,up_bou,...
+    cheapcon_function,....
     NFE_max,iteration_max,torlance,nonlcon_torlance)
 % surrogate base optimal use radias base function method version 0
 % use SVM to get interest point
@@ -197,27 +201,21 @@ function [x_best,fval_best,NFE,output] = optimalSurrogateSRBFSVM...
 %
 % Copyright Adel 2022.10
 %
-if nargin < 11 || isempty(nonlcon_torlance)
+if nargin < 9 || isempty(nonlcon_torlance)
     nonlcon_torlance = 1e-3;
-    if nargin < 10 || isempty(torlance)
+    if nargin < 8 || isempty(torlance)
         torlance = 1e-3;
-        if nargin < 9
+        if nargin < 7
             iteration_max = [];
-            if nargin < 8
+            if nargin < 6
                 NFE_max = [];
             end
         end
     end
 end
 
-if nargin < 7
-    model_function = [];
-    if nargin < 6
-        cheapcon_function = [];
-        if nargin < 5
-            nonlcon_function = [];
-        end
-    end
+if nargin < 5
+    cheapcon_function = [];
 end
 
 DRAW_FIGURE_FLAG = 0; % whether draw data
@@ -255,13 +253,8 @@ done = 0;NFE = 0;iteration = 0;
 
 result_x_best = zeros(iteration_max,variable_number);
 result_fval_best = zeros(iteration_max,1);
-x_data_list = lhsdesign(sample_number_data,variable_number,'iterations',100).*...
+x_data_list = lhsdesign(sample_number_data,variable_number).*...
     (up_bou-low_bou)+low_bou;
-
-% if do not input model_function,generate model_function
-if isempty(model_function)
-    model_function = @(x) modelFunction(x,object_function,nonlcon_function);
-end
 
 iteration = iteration+1;
 
@@ -271,19 +264,21 @@ iteration = iteration+1;
 %     (sample_number_initial,variable_number,[],low_bou,up_bou,cheapcon_function);
 x_updata_list = lhsdesign(sample_number_initial,variable_number).*(up_bou-low_bou)+low_bou;
 
-% detech expensive constraints
+% detech expensive constraints and initializa data library
 if ~isempty(x_updata_list)
-    [~,con,coneq] = dataLibraryUpdata...
+    [x_list,fval_list,con_list,coneq_list] = dataLibraryWrite...
         (data_library_name,model_function,x_updata_list(1,:));NFE = NFE+1;
     x_updata_list = x_updata_list(2:end,:);
 else
-    [~,con,coneq] = dataLibraryLoad(data_library_name,low_bou,up_bou);
+    [x_list,fval_list,con_list,coneq_list] = dataLibraryRead(data_library_name,low_bou,up_bou);
 end
-if ~isempty(con) || ~isempty(coneq)
+vio_list = calViolation(con_list,coneq_list,nonlcon_torlance);
+if ~isempty(vio_list)
     expensive_nonlcon_flag = 1;
 else
     expensive_nonlcon_flag = 0;
 end
+data_library = struct('x_list',x_list,'fval_list',fval_list,'con_list',con_list,'coneq_list',coneq_list,'vio_list',vio_list);
 
 % NFE and iteration setting
 if isempty(NFE_max)
@@ -303,22 +298,17 @@ if isempty(iteration_max)
 end
 
 % import data from data library
-[x_list,fval_list,con_list,coneq_list] = dataLibraryLoad...
+[x_list,fval_list,con_list,coneq_list] = dataLibraryRead...
     (data_library_name,low_bou,up_bou);
 
 while ~done
     % step 3
     % updata data library by x_list
-    [fval_updata_list,con_updata_list,coneq_updata_list] = dataLibraryUpdata...
+    [x_updata_list,fval_updata_list,con_updata_list,coneq_updata_list] = dataLibraryWrite...
         (data_library_name,model_function,x_updata_list);NFE = NFE+size(x_updata_list,1);
-    x_list = [x_list;x_updata_list];
-    fval_list = [fval_list;fval_updata_list];
-    if ~isempty(con_updata_list)
-        con_list = [con_list;con_updata_list];
-    end
-    if ~isempty(coneq_updata_list)
-        coneq_list = [coneq_list;coneq_updata_list];
-    end
+    vio_updata_list = calViolation(con_updata_list,coneq_updata_list,nonlcon_torlance);
+    [data_library,x_list,fval_list,con_list,coneq_list,vio_list] = dataLibraryUpdata...
+        (data_library,x_updata_list,fval_updata_list,con_updata_list,coneq_updata_list,vio_updata_list);
 
     % nomalization all data
     fval_max = max(abs(fval_list),[],1);
@@ -371,16 +361,11 @@ while ~done
 
     % check x_potential if exist in data library
     % if not,updata data libraray
-    [x_potential,fval_potential,con_potential,coneq_potential,NFE_p,repeat_index] = dataLibraryUpdataProtect...
+    [x_potential,fval_potential,con_potential,coneq_potential,NFE_p,repeat_index] = dataLibraryWriteProtect...
         (data_library_name,model_function,x_potential,x_list,low_bou,up_bou,protect_range);NFE = NFE+NFE_p;
-    x_list = [x_list;x_potential];
-    fval_list = [fval_list;fval_potential];
-    if ~isempty(con_list)
-        con_list = [con_list;con_potential];
-    end
-    if ~isempty(coneq_list)
-        coneq_list = [coneq_list;coneq_potential];
-    end
+    vio_potential = calViolation(con_potential,coneq_potential,nonlcon_torlance);
+    [data_library,x_list,fval_list,con_list,coneq_list,vio_list] = dataLibraryUpdata...
+        (data_library,x_potential,fval_potential,con_potential,coneq_potential,vio_potential);
 
     % normalization fval updata
     if ~isempty(fval_potential)
@@ -628,7 +613,7 @@ while ~done
         end
 
         % sampling in ISR
-        [x_list_exist,~,~,~] = dataLibraryLoad...
+        [x_list_exist,~,~,~] = dataLibraryRead...
             (data_library_name,low_bou_ISR,up_bou_ISR);
         %     [~,x_updata_list,~] = getLatinHypercube...
         %         (sample_number_iteration+size(x_list_exist,1),variable_number,x_list_exist,...
@@ -647,19 +632,7 @@ result_fval_best = result_fval_best(1:iteration-1);
 
 output.result_x_best = result_x_best;
 output.result_fval_best = result_fval_best;
-
-    function [fval,con,coneq] = modelFunction...
-            (x,object_function,nonlcon_function)
-        % model function,concertrate fval,con,coneq into one function
-        %
-        if nargin < 3 || isempty(nonlcon_function)
-            con = [];
-            coneq = [];
-        else
-            [con,coneq] = nonlcon_function(x);
-        end
-        fval = object_function(x);
-    end
+output.data_library = data_library;
 
     function fval = objectNonlconFunctionSurrogate(x,nonlcon_function_surrogate)
         [con__,coneq__] = nonlcon_function_surrogate(x);
@@ -672,7 +645,7 @@ output.result_fval_best = result_fval_best;
         end
     end
 
-    function [x_updata_list,fval_updata_list,con_updata_list,coneq_updata_list,NFE_updata,repeat_index] = dataLibraryUpdataProtect...
+    function [x_updata_list,fval_updata_list,con_updata_list,coneq_updata_list,NFE_updata,repeat_index] = dataLibraryWriteProtect...
             (data_library_name,model_function,x_add_list,...
             x_list,low_bou,up_bou,protect_range)
         % function updata data with same_point_avoid protect
@@ -694,7 +667,7 @@ output.result_fval_best = result_fval_best;
                 % distance to exist point of point to add is small than protect_range
                 repeat_index = [repeat_index;min_index__];
             else
-                [fval_updata__,con_updata__,coneq_updata__] = dataLibraryUpdata...
+                [x_updata__,fval_updata__,con_updata__,coneq_updata__] = dataLibraryWrite...
                     (data_library_name,model_function,x_updata__);NFE_updata = NFE_updata+1;
                 x_updata_list = [x_updata_list;x_updata__];
                 fval_updata_list = [fval_updata_list;fval_updata__];
@@ -706,6 +679,23 @@ output.result_fval_best = result_fval_best;
 end
 
 %% auxiliary function
+function vio_list = calViolation(con_list,coneq_list,nonlcon_torlance)
+% calculate violation of data
+%
+if isempty(con_list) && isempty(coneq_list)
+    vio_list = [];
+else
+    vio_list = zeros(max(size(con_list,1),size(coneq_list,1)),1);
+    if ~isempty(con_list)
+        vio_list = vio_list+sum(max(con_list-nonlcon_torlance,0),2);
+    end
+    if ~isempty(coneq_list)
+        vio_list = vio_list+sum((abs(coneq_list)-nonlcon_torlance),2);
+    end
+
+end
+end
+
 function [x_best,fval_best,exitflag,output] = findMinMSP...
     (object_function_surrogate,variable_number,low_bou,up_bou,nonlcon_function_surrogate,...
     cheapcon_function,nonlcon_torlance)
@@ -1787,7 +1777,7 @@ ensemleradialbasis_model.predict_function = predict_function;
 end
 
 %% data library
-function [fval_list,con_list,coneq_list] = dataLibraryUpdata...
+function [x_list,fval_list,con_list,coneq_list] = dataLibraryWrite...
     (data_library_name,model_function,x_list)
 % updata data library
 % updata format:
@@ -1860,7 +1850,7 @@ fclose(file_result);
 clear('file_result');
 end
 
-function [x_list,fval_list,con_list,coneq_list] = dataLibraryLoad...
+function [x_list,fval_list,con_list,coneq_list] = dataLibraryRead...
     (data_library_name,low_bou,up_bou)
 % load data from data library
 % low_bou,up_bou is range of data
@@ -1933,6 +1923,39 @@ else
     con_list = [];
     coneq_list = [];
 end
+end
+
+function [data_library,x_list,fval_list,con_list,coneq_list,vio_list] = dataLibraryUpdata...
+    (data_library,x_list,fval_list,con_list,coneq_list,vio_list)
+% updata data to exist data library
+%
+x_list = [data_library.x_list;x_list];
+data_library.x_list = x_list;
+fval_list = [data_library.fval_list;fval_list];
+data_library.fval_list = fval_list;
+if ~isempty(data_library.con_list)
+    con_list = [data_library.con_list;con_list];
+    data_library.con_list = con_list;
+end
+if ~isempty(data_library.coneq_list)
+    coneq_list = [data_library.coneq_list;coneq_list];
+    data_library.coneq_list = coneq_list;
+end
+if ~isempty(data_library.vio_list)
+    vio_list = [data_library.vio_list;vio_list];
+    data_library.vio_list = vio_list;
+end
+end
+
+function [x_list,fval_list,con_list,coneq_list,vio_list] = dataLibraryLoad...
+    (data_library)
+% updata data to exist data library
+%
+x_list = data_library.x_list;
+fval_list = data_library.fval_list;
+con_list = data_library.con_list;
+coneq_list = data_library.coneq_list;
+vio_list = data_library.vio_list;
 end
 
 %% LHD

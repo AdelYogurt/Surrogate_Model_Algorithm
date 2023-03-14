@@ -2,141 +2,141 @@ clc;
 clear;
 close all hidden;
 
-% func_low=@(x) lowFunction(x);
-% func_high=@(x) highFunction(x);
+% func_low = @(x) lowFunction(x);
+% func_high = @(x) highFunction(x);
 % 
-% func_low_bou=@(x) 0.45+sin(2.2*pi*x)/2.5;
-% func_high_bou=@(x) 0.5+sin(2.5*pi*x)/3;
+% func_low_bou = @(x) 0.45+sin(2.2*pi*x)/2.5;
+% func_high_bou = @(x) 0.5+sin(2.5*pi*x)/3;
 % 
-% variable_number=2;
+% variable_number = 2;
 % 
-% xLF_number=50;
-% XLF=lhsdesign(xLF_number,variable_number);
-% ClassLF=zeros(xLF_number,1);
-% for x_index=1:xLF_number
-%     ClassLF(x_index)=func_low(XLF(x_index,:));
+% xLF_number = 50;
+% XLF = lhsdesign(xLF_number,variable_number);
+% ClassLF = zeros(xLF_number,1);
+% for x_index = 1:xLF_number
+%     ClassLF(x_index) = func_low(XLF(x_index,:));
 % end
 % 
-% [ClassLF,order]=sort(ClassLF);
-% XLF=XLF(order,:);
+% [ClassLF,order] = sort(ClassLF);
+% XLF = XLF(order,:);
 % 
-% xHF_number=20;
-% XHF=lhsdesign(xHF_number,variable_number);
-% ClassHF=zeros(xHF_number,1);
-% for x_index=1:xHF_number
-%     ClassHF(x_index)=func_high(XHF(x_index,:));
+% xHF_number = 20;
+% XHF = lhsdesign(xHF_number,variable_number);
+% ClassHF = zeros(xHF_number,1);
+% for x_index = 1:xHF_number
+%     ClassHF(x_index) = func_high(XHF(x_index,:));
 % end
 % 
-% [ClassHF,order]=sort(ClassHF);
-% XHF=XHF(order,:);
+% [ClassHF,order] = sort(ClassHF);
+% XHF = XHF(order,:);
 % 
-% low_bou=[0,0];
-% up_bou=[1,1];
+% low_bou = [0,0];
+% up_bou = [1,1];
 
 load('CMF_20.mat');
 
-[predict_function,CGPMF_model]=classifyGaussProcessMultiFidelity...
+[predict_function,CGPMF_model] = classifyGaussProcessMultiFidelity...
     (XHF,ClassHF,XLF,ClassLF);
 
-figure_handle=figure(1);
+figure_handle = figure(1);
 classifyVisualization(CGPMF_model,low_bou,up_bou,100,figure_handle)
 
 % draw point
 drawFunction(func_high_bou,0,1,[],[],[],figure_handle)
 
-function [predict_function,CGPMF_model]=classifyGaussProcessMultiFidelity...
+function [predict_function,CGPMF_model] = classifyGaussProcessMultiFidelity...
     (XHF,ClassHF,XLF,ClassLF,hyp)
 % generate multi fidelity gaussian process classifier model
 % version 6,this version is assembly of gpml-3.6 EP method
-% X, XHF, XLF is x_number x variable_number matirx
-% Class, ClassH, ClassLF is x_number x 1 matrix
-% low_bou, up_bou is 1 x variable_number matrix
+% X,XHF,XLF is x_number x variable_number matirx
+% Class,ClassH,ClassLF is x_number x 1 matrix
+% low_bou,up_bou is 1 x variable_number matrix
 %
 % input:
-% XHF, ClassHF, XLF, ClassLF, hyp(mean,cov(lenD, etaD, lenL, etaL, rho))
+% XHF,ClassHF,XLF,ClassLF,hyp(mean,cov(lenD,etaD,lenL,etaL,rho))
 %
 % abbreviation:
 % pred: predicted,nomlz: normalization,num: number
 % var: variance
 %
-% reference: [1]FSCAB C, PP D, EK E, et al. Multi-fidelity classification
+% reference: [1]FSCAB C,PP D,EK E,et al. Multi-fidelity classification
 % using Gaussian processes: Accelerating the prediction of large-scale
 % computational models [J]. Computer Methods in Applied Mechanics and
-% Engineering, 357(C): 112602-.
+% Engineering,357(C): 112602-.
 %
-X=[XHF;XLF];
-Class=[ClassHF;ClassLF];
-[x_number,variable_number]=size(X);
-x_HF_number=size(XHF,1);
-x_LF_number=size(XLF,1);
+X = [XHF;XLF];
+Class = [ClassHF;ClassLF];
+[x_number,variable_number] = size(X);
+x_HF_number = size(XHF,1);
+x_LF_number = size(XLF,1);
 if nargin < 5
-    hyp.mean=0;
-    hyp.cov=zeros(1,variable_number*2+3);
+    hyp.mean = 0;
+    hyp.cov = zeros(1,variable_number*2+3);
 end
 
 % normalization data
-aver_X=mean(X);
-stdD_X=std(X);
-index__=find(stdD_X == 0);
-if  ~isempty(index__),  stdD_X(index__)=1; end
-X_nomlz=(X-aver_X)./stdD_X;
+aver_X = mean(X);
+stdD_X = std(X);
+index__ = find(stdD_X  ==  0);
+if  ~isempty(index__),stdD_X(index__) = 1; end
+X_nomlz = (X-aver_X)./stdD_X;
 
-object_function=@(x) objectNLLMFGPC(x,{@infEP},{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
-hyp_x=[hyp.mean,hyp.cov];
+object_function = @(x) objectNLLMFGPC(x,{@infEP},{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
+hyp_x = [hyp.mean,hyp.cov];
 
-% [fval,gradient]=object_function(hyp_x)
-% [fval_differ,gradient_differ]=differ(object_function,hyp_x)
+% [fval,gradient] = object_function(hyp_x)
+% [fval_differ,gradient_differ] = differ(object_function,hyp_x)
 
-low_bou_hyp=-4*ones(1,2*variable_number+4);
-up_bou_hyp=4*ones(1,2*variable_number+4);
-hyp_x=fmincon(object_function,hyp_x,[],[],[],[],low_bou_hyp,up_bou_hyp,[],...
+low_bou_hyp = -4*ones(1,2*variable_number+4);
+up_bou_hyp = 4*ones(1,2*variable_number+4);
+hyp_x = fmincon(object_function,hyp_x,[],[],[],[],low_bou_hyp,up_bou_hyp,[],...
     optimoptions('fmincon','Display','iter','SpecifyObjectiveGradient',true,...
     'MaxFunctionEvaluations',20,'OptimalityTolerance',1e-6));
 
-hyp.mean=hyp_x(1);
-hyp.cov=hyp_x(2:end);
-hyp.lik=[];
-post=infEP(hyp,{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
-predict_function=@(x_pred) classifyGaussPredictor...
+hyp.mean = hyp_x(1);
+hyp.cov = hyp_x(2:end);
+hyp.lik = [];
+post = infEP(hyp,{@meanConst},{@calCovMF},{@likErf},X_nomlz,Class);
+predict_function = @(x_pred) classifyGaussPredictor...
     (x_pred,hyp,{@meanConst},{@calCovMF},{@likErf},post,X_nomlz,aver_X,stdD_X);
 
 % output model
-X={XHF,XLF};
-Class={ClassHF,ClassLF};
-CGPMF_model.X=X;
-CGPMF_model.Class=Class;
-CGPMF_model.aver_X=aver_X;
-CGPMF_model.stdD_X=stdD_X;
-CGPMF_model.predict_function=predict_function;
-CGPMF_model.hyp=hyp;
-CGPMF_model.post=post;
+X = {XHF,XLF};
+Class = {ClassHF,ClassLF};
+CGPMF_model.X = X;
+CGPMF_model.Class = Class;
+CGPMF_model.aver_X = aver_X;
+CGPMF_model.stdD_X = stdD_X;
+CGPMF_model.predict_function = predict_function;
+CGPMF_model.hyp = hyp;
+CGPMF_model.post = post;
 
-    function [fval,gradient]=objectNLLMFGPC(x,inf,mean,cov,lik,X,Y)
-        hyp_iter.mean=x(1);
-        hyp_iter.cov=x(2:end);
-        hyp_iter.lik=[];
+    function [fval,gradient] = objectNLLMFGPC(x,inf,mean,cov,lik,X,Y)
+        hyp_iter.mean = x(1);
+        hyp_iter.cov = x(2:end);
+        hyp_iter.lik = [];
 
         if nargout < 2
             [~,nlZ] = feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
-            fval=nlZ;
+            fval = nlZ;
         elseif nargout < 3
-            [~,nlZ,dnlZ]=feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
-            fval=nlZ;
-            gradient=[dnlZ.mean,dnlZ.cov];
+            [~,nlZ,dnlZ] = feval(inf{:},hyp_iter,mean,cov,lik,X,Y);
+            fval = nlZ;
+            gradient = [dnlZ.mean,dnlZ.cov];
         end
     end
 
-    function [class,possibility,miu_pre,var_pre]=classifyGaussPredictor...
+    function [class,possibility,miu_pre,var_pre] = classifyGaussPredictor...
             (X_pred,hyp,mean,cov,lik,post,X,aver_X,stdD_X)
         % predict function
         %
-        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-        pred_num=size(X_pred_nomlz,1);
-        ys=ones(pred_num,1);
+        X_pred_nomlz = (X_pred-aver_X)./stdD_X;
+        pred_num = size(X_pred_nomlz,1);
+        ys = ones(pred_num,1);
 
         alpha = post.alpha; L = post.L; sW = post.sW;
         %verify whether L contains valid Cholesky decomposition or something different
-        Lchol = isnumeric(L) && all(all(tril(L,-1)==0)&diag(L)'>0&isreal(diag(L))');
+        Lchol = isnumeric(L) && all(all(tril(L,-1) == 0)&diag(L)'>0&isreal(diag(L))');
         ns = size(X_pred_nomlz,1);                                       % number of data points
         nperbatch = 1000;                       % number of data points per mini batch
         nact = 0;                       % number of already processed test data points
@@ -149,10 +149,10 @@ CGPMF_model.post=post;
             N = size(alpha,2);  % number of alphas (usually 1; more in case of sampling)
             Fmu = repmat(ms,1,N) + Ks'*full(alpha);        % conditional mean fs|f
             miu_pre(id) = sum(Fmu,2)/N;                                   % predictive means
-            if Lchol    % L contains chol decomp => use Cholesky parameters (alpha,sW,L)
+            if Lchol    % L contains chol decomp  = > use Cholesky parameters (alpha,sW,L)
                 V  = L'\(repmat(sW,1,length(id)).*Ks);
                 var_pre(id) = kss - sum(V.*V,1)';                       % predictive variances
-            else                % L is not triangular => use alternative parametrisation
+            else                % L is not triangular  = > use alternative parametrisation
                 if isnumeric(L),LKs = L*Ks; else LKs = L(Ks); end    % matrix or callback
                 var_pre(id) = kss + sum(Ks.*LKs,1)';                    % predictive variances
             end
@@ -170,130 +170,130 @@ CGPMF_model.post=post;
             nact = id(end);          % set counter to index of last processed data point
         end
 
-        possibility=exp(possibility);
-        class=ones(pred_num,1);
-        index_list=possibility < 0.5;
-        class(index_list)=-1;
+        possibility = exp(possibility);
+        class = ones(pred_num,1);
+        index_list = possibility < 0.5;
+        class(index_list) = -1;
     end
 
-    function [K,dK_dcov]=calCovMF(cov,X,Z)
+    function [K,dK_dcov] = calCovMF(cov,X,Z)
         % obtain covariance of x
-        % cov: lenD, etaD, lenL, etaL, rho
+        % cov: lenD,etaD,lenL,etaL,rho
         % len equal to 1/len_origin.^2
         %
-        % % k=eta*exp(-sum(x_dis*theta)/vari_num);
+        % % k = eta*exp(-sum(x_dis*theta)/vari_num);
         %
-        [x_num,vari_num]=size(X);
+        [x_num,vari_num] = size(X);
 
-        lenD=exp(cov(1:vari_num));
-        etaD=exp(cov(vari_num+1));
-        lenL=exp(cov(vari_num+1+(1:vari_num)));
-        etaL=exp(cov(2*(vari_num+1)));
-        rho=exp(cov(end));
+        lenD = exp(cov(1:vari_num));
+        etaD = exp(cov(vari_num+1));
+        lenL = exp(cov(vari_num+1+(1:vari_num)));
+        etaL = exp(cov(2*(vari_num+1)));
+        rho = exp(cov(end));
 
         if nargin > 2 && nargout < 2 && ~isempty(Z)
             if strcmp(Z,'diag')
-                K=rho*rho*etaL+etaD;
+                K = rho*rho*etaL+etaD;
                 return
             end
         end
 
         % predict
         if nargin > 2 && nargout < 2 && ~isempty(Z)
-            [z_num,vari_num]=size(Z);
+            [z_num,vari_num] = size(Z);
             % initializate square of X inner distance sq/ vari_num
-            sq_dis_v=zeros(x_num,z_num,vari_num);
-            for len_index=1:vari_num
-                sq_dis_v(:,:,len_index)=(X(:,len_index)-Z(:,len_index)').^2/vari_num;
+            sq_dis_v = zeros(x_num,z_num,vari_num);
+            for len_index = 1:vari_num
+                sq_dis_v(:,:,len_index) = (X(:,len_index)-Z(:,len_index)').^2/vari_num;
             end
 
             % exp of x__x with D
-            exp_disD=zeros(x_HF_number,z_num);
-            for len_index=1:vari_num
-                exp_disD=exp_disD+...
+            exp_disD = zeros(x_HF_number,z_num);
+            for len_index = 1:vari_num
+                exp_disD = exp_disD+...
                     sq_dis_v(1:x_HF_number,:,len_index)*lenD(len_index);
             end
-            exp_disD=exp(-exp_disD);
+            exp_disD = exp(-exp_disD);
 
             % exp of x__x with L
-            exp_disL=zeros(x_num,z_num);
-            for len_index=1:vari_num
-                exp_disL=exp_disL+...
+            exp_disL = zeros(x_num,z_num);
+            for len_index = 1:vari_num
+                exp_disL = exp_disL+...
                     sq_dis_v(1:x_num,:,len_index)*lenL(len_index);
             end
-            exp_disL=exp(-exp_disL);
+            exp_disL = exp(-exp_disL);
 
-            K=exp_disL;
-            K(1:x_HF_number,:)=rho*rho*etaL*K(1:x_HF_number,:)+etaD*exp_disD;
-            K(x_HF_number+1:end,:)=rho*etaL*K(x_HF_number+1:end,:);
+            K = exp_disL;
+            K(1:x_HF_number,:) = rho*rho*etaL*K(1:x_HF_number,:)+etaD*exp_disD;
+            K(x_HF_number+1:end,:) = rho*etaL*K(x_HF_number+1:end,:);
         else
             % initializate square of X inner distance sq/ vari_num
-            sq_dis_v=zeros(x_num,x_num,vari_num);
-            for len_index=1:vari_num
-                sq_dis_v(:,:,len_index)=(X(:,len_index)-X(:,len_index)').^2/vari_num;
+            sq_dis_v = zeros(x_num,x_num,vari_num);
+            for len_index = 1:vari_num
+                sq_dis_v(:,:,len_index) = (X(:,len_index)-X(:,len_index)').^2/vari_num;
             end
 
             % exp of x__x with H
-            exp_disD=zeros(x_num);
-            for len_index=1:vari_num
-                exp_disD(1:x_HF_number,1:x_HF_number)=exp_disD(1:x_HF_number,1:x_HF_number)+...
+            exp_disD = zeros(x_num);
+            for len_index = 1:vari_num
+                exp_disD(1:x_HF_number,1:x_HF_number) = exp_disD(1:x_HF_number,1:x_HF_number)+...
                     sq_dis_v(1:x_HF_number,1:x_HF_number,len_index)*lenD(len_index);
             end
-            exp_disD(1:x_HF_number,1:x_HF_number)=exp(-exp_disD(1:x_HF_number,1:x_HF_number));
-            KD=etaD*exp_disD;
+            exp_disD(1:x_HF_number,1:x_HF_number) = exp(-exp_disD(1:x_HF_number,1:x_HF_number));
+            KD = etaD*exp_disD;
 
             % exp of x__x with L
-            exp_disL=zeros(x_num);
-            for len_index=1:vari_num
-                exp_disL=exp_disL+...
+            exp_disL = zeros(x_num);
+            for len_index = 1:vari_num
+                exp_disL = exp_disL+...
                     sq_dis_v(1:end,1:end,len_index)*lenL(len_index);
             end
-            exp_disL=exp(-exp_disL);
-            eta_exp_disL=etaL*exp_disL;
+            exp_disL = exp(-exp_disL);
+            eta_exp_disL = etaL*exp_disL;
 
-            % times rho: HH to rho2, HL to rho, LL to 1
-            KL=eta_exp_disL;
-            KL(1:x_HF_number,1:x_HF_number)=...
+            % times rho: HH to rho2,HL to rho,LL to 1
+            KL = eta_exp_disL;
+            KL(1:x_HF_number,1:x_HF_number) = ...
                 (rho*rho)*eta_exp_disL(1:x_HF_number,1:x_HF_number);
-            KL(1:x_HF_number,(x_HF_number+1):end)=...
+            KL(1:x_HF_number,(x_HF_number+1):end) = ...
                 rho*eta_exp_disL(1:x_HF_number,(x_HF_number+1):end);
-            KL((x_HF_number+1):end,1:x_HF_number)=...
+            KL((x_HF_number+1):end,1:x_HF_number) = ...
                 KL(1:x_HF_number,(x_HF_number+1):end)';
 
-            K=KL+KD;
+            K = KL+KD;
 
             if nargout >= 2
-                dK_dcov=cell(1,2*vari_num+3);
+                dK_dcov = cell(1,2*vari_num+3);
 
                 % len D
-                for len_index=1:vari_num
-                    dK_dlenD=zeros(x_num);
-                    dK_dlenD(1:x_HF_number,1:x_HF_number)=-KD(1:x_HF_number,1:x_HF_number).*...
+                for len_index = 1:vari_num
+                    dK_dlenD = zeros(x_num);
+                    dK_dlenD(1:x_HF_number,1:x_HF_number) = -KD(1:x_HF_number,1:x_HF_number).*...
                         sq_dis_v(1:x_HF_number,1:x_HF_number,len_index)*lenD(len_index);
-                    dK_dcov{len_index}=dK_dlenD;
+                    dK_dcov{len_index} = dK_dlenD;
                 end
 
                 % eta D
-                dK_dcov{vari_num+1}=KD;
+                dK_dcov{vari_num+1} = KD;
 
                 % len L
-                for len_index=1:vari_num
-                    dK_dlenL=-KL.*sq_dis_v(:,:,len_index)*lenL(len_index);
-                    dK_dcov{(vari_num+1)+len_index}=dK_dlenL;
+                for len_index = 1:vari_num
+                    dK_dlenL = -KL.*sq_dis_v(:,:,len_index)*lenL(len_index);
+                    dK_dcov{(vari_num+1)+len_index} = dK_dlenL;
                 end
 
                 % eta L
-                dK_dcov{2*(vari_num+1)}=KL;
+                dK_dcov{2*(vari_num+1)} = KL;
 
                 % rho
-                dK_drho=zeros(x_num);
-                dK_drho(1:x_HF_number,1:x_HF_number)=...
+                dK_drho = zeros(x_num);
+                dK_drho(1:x_HF_number,1:x_HF_number) = ...
                     2*rho*rho*eta_exp_disL(1:x_HF_number,1:x_HF_number);
-                dK_drho(1:x_HF_number,(x_HF_number+1):end)=...
+                dK_drho(1:x_HF_number,(x_HF_number+1):end) = ...
                     rho*eta_exp_disL(1:x_HF_number,(x_HF_number+1):end);
-                dK_drho((x_HF_number+1):end,1:x_HF_number)=...
+                dK_drho((x_HF_number+1):end,1:x_HF_number) = ...
                     dK_drho(1:x_HF_number,(x_HF_number+1):end)';
-                dK_dcov{end}=dK_drho;
+                dK_dcov{end} = dK_drho;
             end
         end
 
@@ -315,8 +315,8 @@ CGPMF_model.post=post;
         tol = 1e-4; max_sweep = 10; min_sweep = 2;     % tolerance to stop EP iterations
 
         inf = 'infEP';
-        if isnumeric(cov), K = cov;                    % use provided covariance matrix
-        else K = feval(cov{:}, hyp.cov, x); end       % evaluate the covariance matrix
+        if isnumeric(cov),K = cov;                    % use provided covariance matrix
+        else K = feval(cov{:},hyp.cov,x); end       % evaluate the covariance matrix
 
         n = size(x,1);
 
@@ -368,7 +368,7 @@ CGPMF_model.post=post;
             [Sigma,mu,L,alpha,nlZ] = epComputeParams(K,y,ttau,tnu,lik,hyp,m,inf);
         end
 
-        if sweep == max_sweep && abs(nlZ-nlZ_old) > tol
+        if sweep  ==  max_sweep && abs(nlZ-nlZ_old) > tol
             error('maximum number of sweeps exceeded in function infEP')
         end
 
@@ -382,7 +382,7 @@ CGPMF_model.post=post;
             sW = sqrt(ttau);
             F = alpha*alpha'-repmat(sW,1,n).*(L\(L'\diag(sW)));   % covariance hypers
             [K,dK] = feval(cov{:},hyp.cov,x,[]);
-            for i=1:length(hyp.cov)
+            for i = 1:length(hyp.cov)
                 dnlZ.cov(i) = -sum(sum(F.*dK{i}))/2;
             end
             for i = 1:numel(hyp.lik)                                   % likelihood hypers
@@ -404,7 +404,7 @@ CGPMF_model.post=post;
         %
         n = length(y);                                      % number of training cases
         sW = sqrt(ttau);                                        % compute Sigma and mu
-        L = chol(eye(n)+sW*sW'.*K);                            % L'*L=B=eye(n)+sW*K*sW
+        L = chol(eye(n)+sW*sW'.*K);                            % L'*L = B = eye(n)+sW*K*sW
         V = L'\(repmat(sW,1,n).*K);
         Sigma = K - V'*V;
         alpha = tnu-sW.*(L\(L'\(sW.*(K*tnu+m))));
@@ -435,10 +435,10 @@ CGPMF_model.post=post;
         if nargin<2,A = '1'; return; end             % report number of hyperparameters
         if numel(hyp)~=1,error('Exactly one hyperparameter needed.'),end
         c = hyp;
-        if nargin==2
+        if nargin == 2
             A = c*ones(size(x,1),1);                                       % evaluate mean
         else
-            if i==1
+            if i == 1
                 A = ones(size(x,1),1);                                          % derivative
             else
                 A = zeros(size(x,1),1);
@@ -460,12 +460,12 @@ CGPMF_model.post=post;
         % See also LIKFUNCTIONS.M.
         %
         if nargin<3,varargout = {'0'}; return; end   % report number of hyperparameters
-        if nargin>1,y = sign(y); y(y==0) = 1; else y = 1; end % allow only +/- 1 values
-        if numel(y)==0,y = 1; end
+        if nargin>1,y = sign(y); y(y == 0) = 1; else y = 1; end % allow only +/- 1 values
+        if numel(y) == 0,y = 1; end
 
         if nargin<5                              % prediction mode if inf is not present
             y = y.*ones(size(mu));                                       % make y a vector
-            s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps,s2zero = 0; end  % s2==0 ?
+            s2zero = 1; if nargin>3&&numel(s2)>0&&norm(s2)>eps,s2zero = 0; end  % s2 == 0 ?
             if s2zero                                         % log probability evaluation
                 lp = logphi(y.*mu);
             else                                                              % prediction
@@ -496,11 +496,11 @@ CGPMF_model.post=post;
                 case 'infEP'
                     if nargin<6                                             % no derivative mode
                         z = mu./sqrt(1+s2); dlZ = {}; d2lZ = {};
-                        if numel(y)>0,z = z.*y; end
-                        if nargout<=1,lZ = logphi(z);                         % log part function
+                        if numel(y) > 0,z = z.*y; end
+                        if nargout <= 1,lZ = logphi(z);                         % log part function
                         else          [lZ,n_p] = logphi(z); end
-                        if nargout>1
-                            if numel(y)==0,y=1; end
+                        if nargout > 1
+                            if numel(y) == 0,y = 1; end
                             dlZ = y.*n_p./sqrt(1+s2);                      % 1st derivative wrt mean
                             if nargout>2,d2lZ = -n_p.*(z+n_p)./(1+s2); end         % 2nd derivative
                         end
@@ -527,7 +527,7 @@ CGPMF_model.post=post;
             -0.0045563339802; 0.00556964649138; 0.00125993961762116;
             -0.01621575378835404; 0.02629651521057465; -0.001829764677455021;
             2*(1-pi/3); (4-pi)/3; 1; 1];
-        f = 0; for i=1:14,f = lp0.*(c(i)+f); end,lp(id1) = -2*f-log(2);
+        f = 0; for i = 1:14,f = lp0.*(c(i)+f); end,lp(id1) = -2*f-log(2);
         id2 = z<-11.3137;                                    % second case: very small
         r = [ 1.2753666447299659525; 5.019049726784267463450;
             6.1602098531096305441; 7.409740605964741794425;
@@ -535,8 +535,8 @@ CGPMF_model.post=post;
         q = [ 2.260528520767326969592;  9.3960340162350541504;
             12.048951927855129036034; 17.081440747466004316;
             9.608965327192787870698;  3.3690752069827527677 ];
-        num = 0.5641895835477550741; for i=1:5,num = -z(id2).*num/sqrt(2) + r(i); end
-        den = 1.0;                   for i=1:6,den = -z(id2).*den/sqrt(2) + q(i); end
+        num = 0.5641895835477550741; for i = 1:5,num = -z(id2).*num/sqrt(2) + r(i); end
+        den = 1.0;                   for i = 1:6,den = -z(id2).*den/sqrt(2) + q(i); end
         e = num./den; lp(id2) = log(e/2) - z(id2).^2/2;
         id3 = ~id2 & ~id1; lp(id3) = log(erfc(-z(id3)/sqrt(2))/2);  % third case: rest
         if nargout>1                                        % compute first derivative
@@ -554,17 +554,17 @@ CGPMF_model.post=post;
 
 end
 
-function fval=lowFunction(x)
+function fval = lowFunction(x)
 if 0.45+sin(2.2*pi*x(1))/2.5-x(2) > 0
-    fval=1;
+    fval = 1;
 else
-    fval=-1;
+    fval = -1;
 end
 end
-function fval=highFunction(x)
+function fval = highFunction(x)
 if 0.5+sin(2.5*pi*x(1))/3-x(2) > 0
-    fval=1;
+    fval = 1;
 else
-    fval=-1;
+    fval = -1;
 end
 end

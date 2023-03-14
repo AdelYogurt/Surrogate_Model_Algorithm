@@ -77,7 +77,9 @@ switch dimension
         end
         d_bou=(up_bou(draw_dimension)-low_bou(draw_dimension))/grid_number;
         middle=(up_bou+low_bou)/2;
-        [X__,Y__]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
+        [X__,Y__]=meshgrid(...
+            low_bou(draw_dimension(1)):d_bou(1):up_bou(draw_dimension(1)),...
+            low_bou(draw_dimension(2)):d_bou(2):up_bou(draw_dimension(2)));
         fval__=zeros(grid_number+1,grid_number+1);
         for x_index__=1:grid_number+1
             for y_index__=1:grid_number+1

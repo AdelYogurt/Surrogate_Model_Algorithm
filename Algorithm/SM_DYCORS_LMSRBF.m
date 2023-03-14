@@ -66,29 +66,29 @@ benchmark = BenchmarkFunction();
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1,variable_number)*-30;
-% up_bou = ones(1,variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
-
-variable_number = 30;
-object_function = @(x) benchmark.singleAckley30Object(x);
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
 A = [];
 B = [];
 Aeq = [];
 Beq = [];
-low_bou = -15*ones(1,variable_number);
-up_bou = 20*ones(1,variable_number);
+low_bou = ones(1,variable_number)*-30;
+up_bou = ones(1,variable_number)*30;
 nonlcon_function = [];
+nonlcon_function_LF = [];
 cheapcon_function = [];
+
+% variable_number = 30;
+% object_function = @(x) benchmark.singleAckley30Object(x);
+% A = [];
+% B = [];
+% Aeq = [];
+% Beq = [];
+% low_bou = -15*ones(1,variable_number);
+% up_bou = 20*ones(1,variable_number);
+% nonlcon_function = [];
+% cheapcon_function = [];
 
 % variable_number = 2;
 % object_function = @(x) benchmark.singleG06Object(x);
@@ -151,7 +151,7 @@ delete('result_total.txt');
 
 [x_best,fval_best,NFE,output] = optimalSurrogateDYCORSLMSRBF...
     (object_function,variable_number,low_bou,up_bou,nonlcon_function,...
-    cheapcon_function,[],500,500)
+    cheapcon_function,[],200,500)
 
 result_x_best = output.result_x_best;
 result_fval_best = output.result_fval_best;
@@ -362,6 +362,12 @@ while ~done
     object_function_surrogate = output_radialbasis.object_function_surrogate;
     nonlcon_function_surrogate = output_radialbasis.nonlcon_function_surrogate;
 
+    % calculate gradient
+    [~,gradient] = differ(object_function_surrogate,x_best,[],1e-3);
+    gradient = abs(gradient);
+    gradient_max = max(gradient); gradient_min = min(gradient);
+    gradient = (gradient-gradient_min)./(gradient_max-gradient_min);
+
     % step 5
     % perturbed to get trial point
     coord_select_prob = coord_select_prob_initial*(1-log(NFE-sample_number_initial+1)/log(NFE_max-sample_number_initial));
@@ -369,7 +375,7 @@ while ~done
     % select coordinates to perturb
     coordinate_select_list = [];
     for variable_index = 1:variable_number
-        if rand() < coord_select_prob
+        if rand() < coord_select_prob*gradient(variable_index)
             coordinate_select_list = [coordinate_select_list,variable_index];
         end
     end
