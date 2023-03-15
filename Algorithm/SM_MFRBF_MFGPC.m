@@ -104,7 +104,7 @@ nonlcon_function = @(x) benchmark.singleG06Nonlcon(x);
 nonlcon_function_LF = @(x) benchmark.singleG06NonlconLow(x);
 cheapcon_function = [];
 model_function = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) benchmark.singleG06Nonlcon(x));
-model_function_LF = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) benchmark.singleG06Nonlcon(x));
+model_function_low_fidelity = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) benchmark.singleG06Nonlcon(x));
 
 % variable_number = 4;
 % object_function = @(x) benchmark.singlePVD4Object(x);
@@ -155,8 +155,8 @@ delete('result_total.txt');
 LF_HF_ratio = 3;
 
 [x_best,fval_best,NFE,output] = optimalSurrogateMFRBFMFGPC...
-    (model_function,variable_number,low_bou,up_bou,...
-    cheapcon_function,model_function_LF,LF_HF_ratio,30,500)
+    (model_function,model_function_low_fidelity,LF_HF_ratio,variable_number,low_bou,up_bou,...
+    cheapcon_function,30,500)
 result_x_best = output.result_x_best;
 result_fval_best = output.result_fval_best;
 
@@ -193,24 +193,21 @@ zlabel('Z');
 
 %% main
 function [x_best,fval_best,NFE,output] = optimalSurrogateMFRBFMFGPC...
-    (model_function,model_function_LF,LF_HF_ratio,variable_number,low_bou,up_bou,...
+    (model_function,model_function_low_fidelity,LF_HF_ratio,variable_number,low_bou,up_bou,...
     cheapcon_function,....
-    NFE_max,iteration_max,torlance,nonlcon_torlance,x_initial_list)
+    NFE_max,iteration_max,torlance,nonlcon_torlance)
 % MFRBF-MFGPC optimization algorithm
 %
 % Copyright 2022 Adel
 %
-if nargin < 12
-    x_initial_list = [];
-    if nargin < 11 || isempty(nonlcon_torlance)
-        nonlcon_torlance = 1e-3;
-        if nargin < 10 || isempty(torlance)
-            torlance = 1e-3;
-            if nargin < 9
-                iteration_max = [];
-                if nargin < 8
-                    NFE_max = [];
-                end
+if nargin < 11 || isempty(nonlcon_torlance)
+    nonlcon_torlance = 1e-3;
+    if nargin < 10 || isempty(torlance)
+        torlance = 1e-3;
+        if nargin < 9
+            iteration_max = [];
+            if nargin < 8
+                NFE_max = [];
             end
         end
     end
@@ -231,10 +228,6 @@ sample_number_initial_LF = LF_HF_ratio*sample_number_initial;
 trial_number = min(100*variable_number,100);
 coord_select_prob_initial = min(20/variable_number,1);
 sigma_coord_initial = 0.1*(up_bou-low_bou);
-sigma_coord_min = 0.2*1/64*(up_bou-low_bou);
-sigma_coord_max = 2*(up_bou-low_bou);
-tau_success = 3;
-tau_fail = max(variable_number,5);
 
 % max fval when normalize fval,con,coneq
 nomlz_fval = 10;
@@ -242,6 +235,7 @@ nomlz_fval = 10;
 protect_range = 1e-8;
 
 data_library_name = 'optimal_data_library';
+data_library_name_LF = 'optimal_data_library';
 file_result = fopen('result_total.txt','a');
 fprintf(file_result,'%s\n',datetime);
 fclose(file_result);
@@ -249,20 +243,12 @@ clear('file_result');
 
 done = 0;NFE = 0;iteration = 0;
 
-% if do not input model_function,generate model_function
-if isempty(model_function)
-    model_function = @(x) modelFunction(x,object_function,nonlcon_function);
-end
-
 % step 2
 % generate initial sample x_list
-if isempty(x_initial_list)
-    %     [~,x_updata_list,~] = getLatinHypercube...
-    %         (sample_number_initial,variable_number,[],low_bou,up_bou,cheapcon_function);
-    x_updata_list = lhsdesign(sample_number_initial,variable_number).*(up_bou-low_bou)+low_bou;
-else
-    x_updata_list = x_initial_list;
-end
+%     [~,x_updata_list,~] = getLatinHypercube...
+%         (sample_number_initial,variable_number,[],low_bou,up_bou,cheapcon_function);
+x_updata_list = lhsdesign(sample_number_initial,variable_number).*(up_bou-low_bou)+low_bou;
+x_updata_list_LF = lhsdesign(sample_number_initial_LF,variable_number).*(up_bou-low_bou)+low_bou;
 
 % detech expensive constraints
 if ~isempty(x_updata_list)

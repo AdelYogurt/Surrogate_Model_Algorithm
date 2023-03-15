@@ -106,8 +106,8 @@ classdef BenchmarkFunction < handle
         end
         function fval = singleEP20Object(self,x)
             % variable_number = 20;
-            % object_function = @(x) singleEP20Object(x);
-            % object_function_LF = @(x) singleEP20ObjectLow(x);
+            % object_function = @(x) benchmark.singleEP20Object(x);
+            % object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
             % A = [];
             % B = [];
             % Aeq = [];
@@ -117,6 +117,7 @@ classdef BenchmarkFunction < handle
             % nonlcon_function = [];
             % nonlcon_function_LF = [];
             % cheapcon_function = [];
+            % model_function = @(x) modelFunction(x,@(x) benchmark.singleEP20Object(x),[]);
             %
             % x_best = [1.8000,0.4000,2.0000,1.2000,1.4000,0.6000,1.6000,0.2000,0.8000,1.0000,1.3000,1.1000,2.0000,1.4000,0.5000,0.3000,1.6000,0.7000,0.3000,1.9000]
             % fval_best = 0;

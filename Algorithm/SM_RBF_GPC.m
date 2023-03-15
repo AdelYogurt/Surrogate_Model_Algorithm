@@ -67,19 +67,19 @@ benchmark = BenchmarkFunction();
 % nonlcon_function_LF = [];
 % cheapcon_function = [];
 
-% variable_number = 20;
-% object_function = @(x) benchmark.singleEP20Object(x);
-% object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
-% A = [];
-% B = [];
-% Aeq = [];
-% Beq = [];
-% low_bou = ones(1,variable_number)*-30;
-% up_bou = ones(1,variable_number)*30;
-% nonlcon_function = [];
-% nonlcon_function_LF = [];
-% cheapcon_function = [];
-% model_function = @(x) modelFunction(x,@(x) benchmark.singleEP20Object(x),[]);
+variable_number = 20;
+object_function = @(x) benchmark.singleEP20Object(x);
+object_function_LF = @(x) benchmark.singleEP20ObjectLow(x);
+A = [];
+B = [];
+Aeq = [];
+Beq = [];
+low_bou = ones(1,variable_number)*-30;
+up_bou = ones(1,variable_number)*30;
+nonlcon_function = [];
+nonlcon_function_LF = [];
+cheapcon_function = [];
+model_function = @(x) modelFunction(x,@(x) benchmark.singleEP20Object(x),[]);
 
 % variable_number = 30;
 % object_function = @(x) benchmark.singleAckley30Object(x);
@@ -120,30 +120,30 @@ benchmark = BenchmarkFunction();
 % cheapcon_function = [];
 % model_function = [];
 
-variable_number = 13;
-object_function = @(x) benchmark.singleG01Object(x);
-object_function_low = @(x) benchmark.singleG01ObjectLow(x);
-A = [
-    2   2   0   0   0   0   0   0   0   1   1   0   0;
-    2   0   2   0   0   0   0   0   0   1   0   1   0;
-    0   2   2   0   0   0   0   0   0   0   1   1   0;
-    -8  0   0   0   0   0   0   0   0   1   0   0   0;
-    0   -8  0   0   0   0   0   0   0   0   1   0   0;
-    0   0   -8  0   0   0   0   0   0   0   0   1   0
-    0   0   0   -2  -1  0   0   0   0   1   0   0   0;
-    0   0   0   0   0   -2  -1  0   0   0   1   0   0;
-    0   0   0   0   0   0   0   -2  -1  0   0   1   0;
-    ];
-B = [10;10;10;0;0;0;0;0;0];
-Aeq = [];
-Beq = [];
-low_bou = zeros(1,13);
-up_bou = ones(1,13);
-up_bou(10:12) = 100;
-nonlcon_function = [];
-nonlcon_function_LF = [];
-model_function = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) violationFunction(x,A,B,Aeq,Beq,[]));
-cheapcon_function = [];
+% variable_number = 13;
+% object_function = @(x) benchmark.singleG01Object(x);
+% object_function_low = @(x) benchmark.singleG01ObjectLow(x);
+% A = [
+%     2   2   0   0   0   0   0   0   0   1   1   0   0;
+%     2   0   2   0   0   0   0   0   0   1   0   1   0;
+%     0   2   2   0   0   0   0   0   0   0   1   1   0;
+%     -8  0   0   0   0   0   0   0   0   1   0   0   0;
+%     0   -8  0   0   0   0   0   0   0   0   1   0   0;
+%     0   0   -8  0   0   0   0   0   0   0   0   1   0
+%     0   0   0   -2  -1  0   0   0   0   1   0   0   0;
+%     0   0   0   0   0   -2  -1  0   0   0   1   0   0;
+%     0   0   0   0   0   0   0   -2  -1  0   0   1   0;
+%     ];
+% B = [10;10;10;0;0;0;0;0;0];
+% Aeq = [];
+% Beq = [];
+% low_bou = zeros(1,13);
+% up_bou = ones(1,13);
+% up_bou(10:12) = 100;
+% nonlcon_function = [];
+% nonlcon_function_LF = [];
+% model_function = @(x) modelFunction(x,@(x) benchmark.singleG01Object(x),@(x) violationFunction(x,A,B,Aeq,Beq,[]));
+% cheapcon_function = [];
 
 % x_initial = rand(1,variable_number).*(up_bou-low_bou)+low_bou;
 % [x_best,fval_best,~,output] = fmincon(object_function,x_initial,A,B,Aeq,Beq,low_bou,up_bou,[],optimoptions('fmincon','Algorithm','sqp','MaxFunctionEvaluations',10000,'Display','iter-detailed'))
@@ -155,7 +155,7 @@ delete('result_total.txt');
 
 [x_best,fval_best,NFE,output] = optimalSurrogateRBFGPC...
     (model_function,variable_number,low_bou,up_bou,...
-    cheapcon_function,100,500)
+    cheapcon_function,200,500)
 result_x_best = output.result_x_best;
 result_fval_best = output.result_fval_best;
 
@@ -224,15 +224,10 @@ end
 
 DRAW_FIGURE_FLAG = 0; % whether draw data
 INFORMATION_FLAG = 1; % whether print data
-CONVERGENCE_JUDGMENT_FLAG = 1; % whether judgment convergence
+CONVERGENCE_JUDGMENT_FLAG = 0; % whether judgment convergence
 
 % hyper parameter
 sample_number_initial = 6+3*variable_number;
-trial_number = min(100*variable_number,100);
-coord_select_prob_initial = min(20/variable_number,1);
-sigma_coord_initial = 0.1*(up_bou-low_bou);
-sigma_coord_min = 0.2*1/64*(up_bou-low_bou);
-sigma_coord_max = 2*(up_bou-low_bou);
 tau_success = 3;
 tau_fail = max(variable_number,5);
 
@@ -309,7 +304,6 @@ vio_updata_list = calViolation(con_updata_list,coneq_updata_list,nonlcon_torlanc
     cheapcon_function,nonlcon_torlance);
 
 iteration = iteration+1;
-sigma_coord = sigma_coord_initial;
 C_success = 0;
 C_fail = 0;
 C_repeat = 0;
@@ -317,23 +311,24 @@ next_search_flag = 'G'; % 'G' is global search,'l' is local search
 hyp.mean = 0;
 hyp.cov = [0,0];
 while ~done
-    search_flag = next_search_flag;
+    search_flag = 'l';
+
     % nomalization all data by max fval
     fval_max = max(abs(fval_list),[],1);
-    fval_nomlz_list = fval_list/fval_max*nomlz_fval;
+    fval_model_list = fval_list/fval_max*nomlz_fval;
     if ~isempty(con_list)
         con_max_list = max(abs(con_list),[],1);
-        con_nomlz_list = con_list./con_max_list*nomlz_fval;
+        con_model_list = con_list./con_max_list*nomlz_fval;
     else
-        con_nomlz_list = [];
+        con_model_list = [];
     end
     if ~isempty(coneq_list)
         coneq_max_list = max(abs(coneq_list),[],1);
-        coneq_nomlz_list = coneq_list./coneq_max_list*nomlz_fval;
+        coneq_model_list = coneq_list./coneq_max_list*nomlz_fval;
     else
-        coneq_nomlz_list = [];
+        coneq_model_list = [];
     end
-    vio_nomlz_list = calViolation(con_nomlz_list,coneq_nomlz_list,nonlcon_torlance);
+    vio_model_list = calViolation(con_model_list,coneq_model_list,nonlcon_torlance);
 
     % find fesiable data in current data library
     if expensive_nonlcon_flag
@@ -344,7 +339,7 @@ while ~done
     % construct RBF model
     % base on distance to x_list to repace predict variance
     [RBF_model_fval,RBF_model_con,RBF_model_coneq,output_RBF] = getRadialBasisModel...
-        (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list);
+        (x_list,fval_model_list,con_model_list,coneq_model_list);
     object_function_surrogate = output_RBF.object_function_surrogate;
     nonlcon_function_surrogate = output_RBF.nonlcon_function_surrogate;
 
@@ -354,10 +349,10 @@ while ~done
     improve_flag = 0;
     if expensive_nonlcon_flag
         % base on filter to decide which x should be choose
-        pareto_index_list = getParetoFront([fval_list(~feasi_boolean_list),vio_list(~feasi_boolean_list)]);
+        pareto_index_list = getParetoFront([fval_list(),vio_list()]);
         class_list = -1*ones(size(x_list,1),1);
         class_list(pareto_index_list) = 1;
-        class_list(feasi_boolean_list) = 1;
+%         class_list(feasi_boolean_list) = 1;
 
         [predict_function,CGP_model] = classifyGaussProcess(x_list,class_list,hyp);
     end
@@ -368,13 +363,13 @@ while ~done
         wD = 0.5;
     else
         next_search_flag = 'G';
-        wF = 1;
-        wD = 0;
+        wF = 1.0;
+        wD = 0.0;
     end
 
     % get local infill point
     % obtian total constraint function
-    merit_function = @(x) meritFunction(x,object_function_surrogate,x_list,up_bou,low_bou,wF,wD);
+    merit_function = @(x) meritFunction(x,object_function_surrogate,x_list,variable_number,up_bou,low_bou,wF,wD);
     if search_flag == 'G'
         if expensive_nonlcon_flag
             GPC_function = @(x) probGPCFunction(x,predict_function);
@@ -394,7 +389,7 @@ while ~done
 
     % local search
     [~,~,~,~,~,index_list] = rankData...
-        (x_list,fval_nomlz_list,con_nomlz_list,coneq_nomlz_list,...
+        (x_list,fval_model_list,con_model_list,coneq_model_list,...
         cheapcon_function,nonlcon_torlance);
 
     % step 8
@@ -470,12 +465,19 @@ while ~done
     [x_best,fval_best,con_best,coneq_best] = findMinRaw...
         (x_list,fval_list,con_list,coneq_list,...
         cheapcon_function,nonlcon_torlance);
-    vio_best = 0;
-    if ~isempty(con_list)
-        vio_best = vio_best+sum(max(con_best-nonlcon_torlance,0),2);
-    end
-    if ~isempty(coneq_list)
-        vio_best = vio_best+sum((abs(coneq_best)-nonlcon_torlance),2);
+    vio_best = calViolation(con_best,coneq_best,nonlcon_torlance);
+
+    if search_flag == 'g'
+        x_infill = x_best+(lhsdesign(10,variable_number)*5-2.5);
+
+        [x_infill,fval_infill,con_infill,coneq_infill,NFE_p,repeat_index] = dataLibraryUpdataProtect...
+            (data_library_name,model_function,x_infill,...
+            x_list,low_bou,up_bou,protect_range);NFE = NFE+NFE_p;
+
+        % infill point violation and updata to library
+        vio_infill = calViolation(con_infill,coneq_infill,nonlcon_torlance);
+        [data_library,x_list,fval_list,con_list,coneq_list,vio_list] = dataLibraryUpdata...
+            (data_library,x_infill,fval_infill,con_infill,coneq_infill,vio_infill);
     end
 
     if INFORMATION_FLAG
@@ -509,7 +511,7 @@ while ~done
             if ~isempty(vio_infill) && vio_infill == 0
                 C_repeat = C_repeat+1;
             else
-                C_repeat = C_repeat+1;
+                C_repeat = 0;
             end
             if C_repeat == 2
                 %                     done = 1;
@@ -569,12 +571,12 @@ output.result_fval_best = result_fval_best;
         end
     end
 
-    function fval = meritFunction(x,object_function_surrogate,x_list,up_bou,low_bou,wF,wD)
+    function fval = meritFunction(x,object_function_surrogate,x_list,variable_number,up_bou,low_bou,wF,wD)
         % function to consider surrogate fval and variance
         %
         fval_pred = object_function_surrogate(x);
 
-        distance = -min(sum(((x-x_list)./(up_bou-low_bou)).^2,2));
+        distance = -min(sum(((x-x_list)./(up_bou-low_bou)/variable_number).^2,2));
 
         fval = fval_pred*wF+distance*wD;
     end
